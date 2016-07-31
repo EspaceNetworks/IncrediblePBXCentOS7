@@ -1,0 +1,163 @@
+#!/bin/bash
+
+#     add-ip (c) Copyright 2012-2014, Ward Mundy & Associates LLC. All Rights Reserved.
+#
+#                    add-ip 1.4U is licensed under the GPL2 license
+#
+#  For a copy of license, visit http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+#
+#   For additional information, contact us: http://pbxinaflash.com/about/comment.php
+
+if [ -z "$2" ]; then
+ echo "Syntax: add-ip name ipaddress (NO spaces in name or ip address)"
+ exit 0
+fi
+
+
+clear
+cd /root
+
+
+dotlist="${2//[^.]}"
+dots=${#dotlist}
+
+if [ "$dots" != "3" ]; then
+  echo "$2: Invalid IP address. Please try again."
+  exit 0
+fi
+
+
+#iptest=`nslookup $2 | tail -2 | head -n 1 | cut -f 3 -d " "`
+
+#if [ "$iptest" = "can't" ]; then
+# echo "Invalid IP address. Please try again."
+# nslookup $2
+# exit 0
+#fw
+
+
+clear
+
+echo "add-ip (c) Copyright 2012-2014, Ward Mundy & Associates, LLC"
+echo "This script modifies critical security files on your server."
+echo "This script opens complete SIP and IAX server access to your"
+echo "server for this IP address: $2"
+echo "SIP or IAX activity from this address may damage your server!"
+echo " "
+echo "BY PROCEEDING, YOU AGREE TO ASSUME ALL RISKS FROM PROPER OR"
+echo "IMPROPER FUNCTIONING OF THIS SOFTWARE, WHETHER INTENTIONAL OR NOT."
+echo "ABSOLUTELY NO WARRANTIES, EXPRESS OR IMPLIED, ARE PROVIDED"
+echo "INCLUDING FITNESS FOR PARTICULAR USE AND MERCHANTABILITY."
+echo "YOU ALONE ARE RESPONSIBLE FOR DETERMINING WHETHER THIS"
+echo "IPTABLES SECURITY SOFTWARE WILL MEET YOUR NEEDS AND EXPECTATIONS!"
+echo "THE SOFTWARE IS PROVIDED AS IS. EXAMINE THE SCRIPT CAREFULLY BEFORE"
+echo "PROCEEDING! PROCEED ONLY IF YOUR AGREE TO ALL OF THESE TERMS OF USE."
+echo " "
+read -p "To proceed at your own risk, press Enter. Otherwise, Ctrl-C to abort."
+
+clear
+echo "IP: $2"
+
+
+iptestlast="$iptest"
+iptest="$2"
+
+if [ ! -s "$1.iptables" ]; then
+ echo "1.1.1.1 1.1.1.1" > /root/$1.iptables
+else
+ echo "Sorry. Account $1.iptables already exists."
+ exit 0
+fi
+
+
+iplast=`cat /root/$1.iptables | cut -f 1 -d " "`
+
+if [ "$iptest" != "$iplast" ]; then
+
+service[0]="ALL Services"
+service[1]="SIP (UDP)"
+service[2]="SIP (TCP)"
+service[3]="IAX"
+service[4]="Web"
+service[5]="WebMin"
+service[6]="FTP"
+service[7]="TFTP"
+service[8]="SSH"
+service[9]="FOP"
+
+entry[0]="-A INPUT -s $iptest -j ACCEPT"
+entry[1]="-A INPUT -p udp -m udp -s $iptest --dport 5060:5069 -j ACCEPT"
+entry[2]="-A INPUT -p tcp -m tcp -s $iptest --dport 5060:5069 -j ACCEPT"
+entry[3]="-A INPUT -p udp -m udp -s $iptest --dport 4569 -j ACCEPT"
+entry[4]="-A INPUT -p tcp -m multiport -s $iptest --dports 80,9080 -j ACCEPT"
+entry[5]="-A INPUT -p tcp -m tcp -s $iptest --dport 9001 -j ACCEPT"
+entry[6]="-A INPUT -p tcp -m tcp -s $iptest --dport 21 -j ACCEPT"
+entry[7]="-A INPUT -p udp -m udp -s $iptest --dport 69 -j ACCEPT"
+entry[8]="-A INPUT -p tcp -m multiport -s $iptest --dports 22,9022 -j ACCEPT"
+entry[9]="-A INPUT -p tcp -m tcp -s $iptest --dport 4445 -j ACCEPT"
+
+
+clear
+echo "The following services are available for activation with $iptest:"
+LEN=${#service[@]}
+for (( i=0; i<${LEN}; i++ ));
+do
+   echo "$i - ${service[$i]}" 
+done
+echo "Enter the services desired by number. Separate entries with commas."
+echo "For example: 1,4 would activate standard UDP SIP plus web access."
+echo " "
+read mypick
+echo " "
+
+
+lowest=12345
+highest=34567
+tmpfile="/tmp/$[ ( $RANDOM % ( $[ $highest - $lowest ] + 1 ) ) + $lowest ]"
+#foo='1,2,3,4'
+foo=$mypick
+bar=(`echo $foo | tr ',' ' '`)
+LEN=${#bar[@]}
+echo "The following whitelisted services were requested for $iptest:"
+echo "# // New entry for $1.iptables" > $tmpfile
+for (( i=0; i<${LEN}; i++ ));
+do
+  option=${bar[$i]}
+  if [ ! -z "${service[$option]}" ]; then
+   echo ${service[$option]} 
+   echo ${entry[$option]} >> $tmpfile 
+  fi
+done
+
+echo "# // End entry for $1.iptables" >> $tmpfile
+sed -i '/# End of Trusted Provider Section/r '$tmpfile'' /etc/sysconfig/iptables
+
+rm $tmpfile
+
+iptest=`service iptables-persistent restart | grep fail`
+if [[ $iptest = *fail* ]]; then
+ echo "Oops. There was an error adding $2. Restarting IPtables..."
+ sed -i '\:// New entry for '$acct':,\:// End entry for '$acct':d' /etc/sysconfig/iptables
+ rm /root/$1.iptables
+ iptables-restart
+ echo " "
+ read -p "To display current iptables rules currently in effect,  press Enter."
+ clear
+ echo "The following iptables rules now are in effect:"
+ iptables -nL | more
+ exit 1
+else
+ echo "IP address successfully added to WhiteList."
+ echo "$iptest $iptest" > /root/$1.iptables
+ echo " "
+ read -p "To display current iptables rules in effect for this IP address,  press Enter."
+ clear
+ echo "The following iptables rules now are in effect for $2:"
+ iptables -nL | grep $2
+ exit 0
+fi
+
+fi
+
+#eof
+
