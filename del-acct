@@ -1,0 +1,68 @@
+#!/bin/bash
+
+#     del-acct (c) Copyright 2012-2014, Ward Mundy & Associates LLC. All Rights Reserved.
+#
+#                    del-acct 1.4U is licensed under the GPL2 license
+#
+#  For a copy of license, visit http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+#
+#   For additional information, contact us: http://pbxinaflash.com/about/comment.php
+
+
+clear
+
+if [ -z "$1" ]; then
+ cd /root
+ echo "The following accounts currently exist:"
+ ls *.iptables
+ echo "Enter the full filename of the account to delete:"
+ read acct
+elif [ ! -s "/root/$1" ]; then
+ echo "File not found: $1"
+ echo "The following accounts currently exist:"
+ ls *.iptables
+ echo "Did you forget .iptables?"
+ exit 0
+else
+ acct=$1
+fi
+if [ -z "$acct" ]; then
+ echo "No account selected. Aborting..."
+ echo "The following accounts currently exist:"
+ ls *.iptables
+ exit 0
+fi
+if [ ! -s "/root/$acct" ]; then
+ echo "File not found: $acct"
+ echo "The following accounts currently exist:"
+ ls *.iptables
+ echo "Did you forget .iptables?"
+ exit 0
+fi
+
+clear
+echo "del-acct (c) Copyright 2012-2014, Ward Mundy & Associates, LLC"
+echo "This script modifies critical security files on your server."
+echo "This script will permanently delete $acct"
+echo "and will also remove the corresponding rule from IPtables."
+echo " "
+echo "BY PROCEEDING, YOU AGREE TO ASSUME ALL RISKS FROM PROPER OR"
+echo "IMPROPER FUNCTIONING OF THIS SOFTWARE, WHETHER INTENTIONAL OR NOT."
+echo "ABSOLUTELY NO WARRANTIES, EXPRESS OR IMPLIED, ARE PROVIDED"
+echo "INCLUDING FITNESS FOR PARTICULAR USE AND MERCHANTABILITY."
+echo "YOU ALONE ARE RESPONSIBLE FOR DETERMINING WHETHER THIS"
+echo "IPTABLES SECURITY SOFTWARE WILL MEET YOUR NEEDS AND EXPECTATIONS!"
+echo "THE SOFTWARE IS PROVIDED AS IS. EXAMINE THE SCRIPT CAREFULLY BEFORE"
+echo "PROCEEDING! PROCEED ONLY IF YOUR AGREE TO ALL OF THESE TERMS OF USE."
+echo " "
+read -p "To proceed at your own risk, press Enter. Otherwise, Ctrl-C to abort."
+
+
+clear
+sed -i '\:// New entry for '$acct':,\:// End entry for '$acct':d' /etc/sysconfig/iptables
+rm /root/$acct
+
+echo "$acct credentials have been deleted from your server."
+echo "Restarting IPtables. Verify OK!"
+
+iptables-restart
