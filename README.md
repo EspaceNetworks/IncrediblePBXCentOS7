@@ -1,2 +1,3 @@
 # IncrediblePBXCentOS7
-PIAF
+IncrediblePBX for CentOS 7
+incrediblepbx.com
