@@ -1,0 +1,125 @@
+#!/bin/bash
+DN="\Z1\ZrDN\Z0\ZR";
+UP="\Zr\Z2UP\Z0\ZR";
+if hostname -I > /etc/hostip; then
+    _IP="Private IP: `cat /etc/hostip`"
+    _PUBLIC=" Public IP: `curl -s -S --user-agent "Mozilla/4.0" http://myip.pbxinaflash.com | awk 'NR==2'`"
+else
+   _IP=""
+   _PUBLIC=""
+fi
+version=`cat /etc/pbx/.version`
+astversion=`asterisk -rx "core show version" | grep -m 2 ^ | tail -1 | cut -f 2 -d " "`
+fpbxversion=`cat /var/www/html/admin/modules/core/module.xml | grep version | head -n 1 | cut -f 2 -d ">" | cut -f 1 -d "<"`
+test=`ps aux | grep -c /usr/sbin/asterisk`
+OSrelease=`cat /etc/os-release | grep 'PRETTY_NAME="' | cut -f 2 -d "="`
+
+if [ "$test" -lt "1" ]; then
+ asterisk="$DN"
+else
+ asterisk="$UP"
+fi
+test=`ps aux | grep -c httpd`
+if [ "$test" -lt "1" ]; then
+ apache="$DN"
+else
+ apache="$UP"
+fi
+test=`ps aux | grep -c mysqld`
+if [ "$test" -lt "2" ]; then
+ mysql="$DN"
+else
+ mysql="$UP"
+fi
+test=`ps aux | grep -c webmin`
+if [ "$test" -lt "1" ]; then
+ webmin="$DN"
+else
+ webmin="$UP"
+fi
+test=`ps aux | grep -c /usr/sbin/sshd`
+if [ "$test" -lt "1" ]; then
+ ssh="$DN"
+else
+ ssh="$UP"
+fi
+test=`ps aux | grep -c sendmail`
+if [ "$test" -lt "2" ]; then
+ sendmail="$DN"
+else
+ sendmail="$UP"
+fi
+test=`ps aux | grep -c fail2ban`
+if [ "$test" -gt "0" ]; then
+ fail2ban="$UP"
+else
+ fail2ban="$DN"
+fi
+test=`ps aux | grep -c ntpd`
+if [ "$test" -lt "2" ]; then
+ ntpd="$DN"
+else
+ ntpd="$UP"
+fi
+test=`sudo iptables -nL | grep -c DROP`
+if [ "$test" -lt "1" ]; then
+ IPtables="$DN"
+else
+ IPtables="$UP"
+fi
+#IPPORT=`ifconfig|gawk '/flags/{print $1}'|cut -f 1 -d ":"|tail -1`
+IPPORT=`ifconfig | grep : | cut -f 1 -d " " | head -n 1 | cut -f 1 -d ":"`
+#IPPORT='ens33'
+test=`/sbin/ifconfig $IPPORT | grep -c inet`
+if [ "$test" -lt "2" ]; then
+ eth0="$DN"
+else
+ eth0="$UP"
+fi
+RAM=`free -h | grep -m 2 ^ | tail -1 | sed -e's/  */ /g' | cut -f 4 -d " "`
+if [ -z "$RAM" ]; then
+ RAM="`free | grep -m 2 ^ | tail -1 | cut -f 18 -d " "`"
+ if [ -z "$RAM" ]; then
+  RAM=" `free | grep -m 2 ^ | tail -1 | cut -f 19 -d " "`"
+ fi
+fi
+DISK=`df -h | grep -m 2 ^ | tail -1 | sed -e's/  */ /g' | cut -f 4 -d " "`
+if [ -z "$DISK" ]; then
+ DISK=" `df -h | grep -m 2 ^ | tail -1 | cut -f 9 -d " "`"
+fi
+if [ "${#DISK}" -eq "4" ]; then
+ DISK=" $DISK"
+fi
+
+NOW=`date`
+
+if [ ${OSrelease:1:3} = "Sci" ];then
+  OSrelease2="Scientific Linux"
+elif [ ${OSrelease:1:3} = "Cen" ];then
+  OSrelease2="CentOS Linux v7"
+elif [ ${OSrelease:1:3} = "Ora" ];then
+  OSrelease2="Oracle Linux v7"
+elif [ ${OSrelease:1:3} = "Red" ];then
+  OSrelease2="RedHat Linux v7"
+elif [ ${OSrelease:1:3} = "RHE" ];then
+  OSrelease2="RedHat Linux v7"
+else
+  OSrelease2="RH-Compat Linux"
+fi
+
+TOP="\n\ZbAsterisk\ZB: $asterisk      \ZbApache\ZB: $apache  \ZbMariaDB\ZB: $mysql\n\ZbSendMail\ZB: $sendmail    \ZbIPtables\ZB: $IPtables      \ZbSSH\ZB: $ssh\n\ZbLAN port\ZB: $eth0    \ZbFail2Ban\ZB: $fail2ban   \ZbWebmin\ZB: $webmin\n\n\Zr\Z4\Zb"
+MID="RAM\ZB: $RAM    $OSrelease2   \ZbDisk\ZB:$DISK\ZR\Z0\n\n\Z5\Zb"
+BOT="Asterisk $astversion    Incredible GUI $fpbxversion\ZB\Z0\n\n\Zb$_IP\n\n$_PUBLIC\ZB\n\n\ZbSystem Time: $NOW\Zb"
+
+MSGLEN=`echo ${#MID}`
+
+if [ "$MSGLEN" -gt "90" ]; then
+ MID2=`echo $MID| sed -e 's/  / /g'`
+ MID=`echo $MID2| sed -e 's/Disk/ Disk/g'`
+fi
+
+MSG="$TOP$MID$BOT"
+
+dialog --no-lines --colors --title "Incredible PBX $version for CentOS/SL 7" --msgbox "$MSG" 20 47
+
+clear
