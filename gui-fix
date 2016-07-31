@@ -1,0 +1,25 @@
+#!/bin/bash
+
+/usr/local/sbin/amportal chown
+/usr/local/sbin/amportal a ma refreshsignatures
+/var/lib/asterisk/bin/freepbx_setting SIGNATURECHECK 0
+/usr/local/sbin/amportal a reload
+cd /root
+if [ ! -f /root/favicon.ico ]; then
+ /usr/bin/wget http://incrediblepbx.com/favicon.ico
+ /bin/chown asterisk:asterisk favicon.ico
+ /usr/bin/chattr +i favicon.ico
+fi
+cp -p favicon.ico /var/www/html/.
+cp -p favicon.ico /var/www/manual/images/.
+cp -p favicon.ico /var/www/html/reminders/.
+cp -p favicon.ico /var/www/html/admin/modules/framework/amp_conf/htdocs/admin/images/.
+cp -p favicon.ico /var/www/html/admin/images/.
+cp -p favicon.ico /usr/src/freepbx/amp_conf/htdocs/admin/images/.
+rm -f /var/www/html/admin/images/schmooze-logo.png
+rm -f /var/www/html/admin/images/tango.*
+rm -f /var/www/html/admin/images/freepbx.png
+/usr/local/sbin/amportal kill
+/usr/local/sbin/amportal start
+/var/lib/asterisk/bin/freepbx_setting SIGNATURECHECK 0
+/usr/local/sbin/amportal a r
