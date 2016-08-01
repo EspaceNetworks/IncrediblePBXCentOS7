@@ -14,13 +14,13 @@ fpbxversion=`cat /var/www/html/admin/modules/core/module.xml | grep version | he
 test=`ps aux | grep -c /usr/sbin/asterisk`
 OSrelease=`cat /etc/os-release | grep 'PRETTY_NAME="' | cut -f 2 -d "="`
 
-if [ "$test" -lt "1" ]; then
+if [ "$test" -lt "2" ]; then
  asterisk="$DN"
 else
  asterisk="$UP"
 fi
 test=`ps aux | grep -c httpd`
-if [ "$test" -lt "1" ]; then
+if [ "$test" -lt "2" ]; then
  apache="$DN"
 else
  apache="$UP"
@@ -32,13 +32,13 @@ else
  mysql="$UP"
 fi
 test=`ps aux | grep -c webmin`
-if [ "$test" -lt "1" ]; then
+if [ "$test" -lt "2" ]; then
  webmin="$DN"
 else
  webmin="$UP"
 fi
 test=`ps aux | grep -c /usr/sbin/sshd`
-if [ "$test" -lt "1" ]; then
+if [ "$test" -lt "2" ]; then
  ssh="$DN"
 else
  ssh="$UP"
@@ -50,7 +50,7 @@ else
  sendmail="$UP"
 fi
 test=`ps aux | grep -c fail2ban`
-if [ "$test" -gt "0" ]; then
+if [ "$test" -gt "1" ]; then
  fail2ban="$UP"
 else
  fail2ban="$DN"
