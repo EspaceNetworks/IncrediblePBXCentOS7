@@ -101,6 +101,12 @@ else
  arch64=false
 fi
 
+if [[ "i686" = "$test" ]]; then
+ arch32=true
+else
+ arch32=false
+fi
+
 test=`cat /etc/redhat-release | grep 6`
 if [[ -z $test ]]; then
  release="7"
@@ -199,17 +205,39 @@ rm -f rpmforge-release-*
 
 #set -e
 
-cd /root
-yum -y install $(cat yumlist.txt)
-#rm -f yumlist.txt
-#touch yumlist.txt
+#cd /root
+#yum -y install $(cat yumlist.txt)
+##rm -f yumlist.txt
+##touch yumlist.txt
+
+#set -e
 
 # get the epel repo
 if [[ "$release" = "6" ]]; then
  wget http://download.fedoraproject.org/pub/epel/6/x86_64/epel-release-6-8.noarch.rpm
  rpm -Uvh epel-release-6-8.noarch.rpm
- yum -y install freetds freetds-devel
+ rm -f epel-release-6-8.noarch.rpm
 fi
+if [[ "$release" = "7" ]]; then
+ wget https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+ rpm -Uvh epel-release-latest-7.noarch.rpm
+ rm -f epel-release-latest-7.noarch.rpm
+ if [[ "$arch32" = "true" ]]; then
+  sed -i 's|/epel/7/$basearch|/epel/7/x86_64|' /etc/yum.repos.d/epel.repo
+  sed -i 's|&arch=$basearch|&arch=x86_64|' /etc/yum.repos.d/epel.repo
+ fi
+fi
+
+# install pip for python packages.
+yum install -y python-pip
+pip install --upgrade pip
+pip install simplejson
+
+set -e
+
+# NOW that repos are installed, install the yumlist
+yum -y install $(cat yumlist.txt)
+#yum -y install freetds freetds-devel
 
 # set up NTP
 /usr/sbin/ntpdate -su pool.ntp.org
