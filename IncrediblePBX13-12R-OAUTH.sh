@@ -8,6 +8,7 @@
 #    Portions Copyright (C) 2005-2016,  Sangoma Technologies, Inc.
 #    Portions Copyright (C) 2005-2016,  Ward Mundy & Associates LLC
 #    Portions Copyright (C) 2014-2016,  Eric Teeter teetere@charter.net
+#    Portions Copyright (C) 2016,       Chris Coleman, ESPACE LLC chris@espacenetworks.com
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -205,6 +206,7 @@ rm -f rpmforge-release-*
 
 #set -e
 
+#install yumlist AFTER installing the epel repo
 #cd /root
 #yum -y install $(cat yumlist.txt)
 ##rm -f yumlist.txt
@@ -233,9 +235,10 @@ yum install -y python-pip
 pip install --upgrade pip
 pip install simplejson
 
-set -e
+#set -e
 
 # NOW that repos are installed, install the yumlist
+cd /root
 yum -y install $(cat yumlist.txt)
 #yum -y install freetds freetds-devel
 
@@ -259,7 +262,6 @@ then
  fi
 fi
 
-set -e
 
 cd /usr/src
 wget --no-check-certificate https://iksemel.googlecode.com/files/iksemel-1.4.tar.gz
@@ -281,8 +283,6 @@ pear channel-update pear.php.net
 pear install -Z db-1.7.14
 wait
 
-set -e
-
 #install Asterisk packages
 echo "----> Install Asterisk packages"
 
@@ -302,12 +302,13 @@ rm -r libpri-*
 rm -r asterisk-*
 rm -r pjproject-*
 rm -r srtp-*
+
 set -e
 
 #from source by Billy Chia
 cd /usr/src
-#wget http://downloads.asterisk.org/pub/telephony/dahdi-linux-complete/dahdi-linux-complete-current.tar.gz
-wget http://downloads.asterisk.org/pub/telephony/dahdi-linux-complete/dahdi-linux-complete-2.10.2+2.10.2.tar.gz
+wget http://downloads.asterisk.org/pub/telephony/dahdi-linux-complete/dahdi-linux-complete-current.tar.gz
+#wget http://downloads.asterisk.org/pub/telephony/dahdi-linux-complete/dahdi-linux-complete-2.10.2+2.10.2.tar.gz
 wget http://downloads.asterisk.org/pub/telephony/libpri/libpri-current.tar.gz
 wget http://downloads.asterisk.org/pub/telephony/asterisk/asterisk-13-current.tar.gz
 #wget http://downloads.asterisk.org/pub/telephony/asterisk/asterisk-13.7.2.tar.gz
