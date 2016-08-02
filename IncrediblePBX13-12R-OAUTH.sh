@@ -121,7 +121,7 @@ hwclock --show
 hwclock --systohc
 cd /
 touch currtime
-find . -cnewer /currtime -exec touch {} \;
+find . -xdev -type d -cnewer /currtime -exec touch {} \;
 echo "Done."
 echo " "
 fi
@@ -176,6 +176,7 @@ else
  wget ftp://ftp.pbone.net/mirror/ftp5.gwdg.de/pub/opensuse/repositories/home:/dkdegroot:/asterisk/CentOS_CentOS-6/i686/spandsp-devel-0.0.6-35.1.i686.rpm
 fi
 rpm -ivh spandsp*
+rm -f spandsp-*
 wait
 fi
 
@@ -193,12 +194,15 @@ else
   wget http://repository.it4i.cz/mirrors/repoforge/redhat/el6/en/i386/rpmforge/RPMS/rpmforge-release-0.5.3-1.el6.rf.i686.rpm
  fi
 fi
-rpm -Uvh rpmforge*
+rpm -Uvh rpmforge-release-*
+rm -f rpmforge-release-*
+
+#set -e
+
 cd /root
 yum -y install $(cat yumlist.txt)
-
-rm -f yumlist.txt
-touch yumlist.txt
+#rm -f yumlist.txt
+#touch yumlist.txt
 
 # get the epel repo
 if [[ "$release" = "6" ]]; then
@@ -227,9 +231,12 @@ then
  fi
 fi
 
+set -e
+
 cd /usr/src
 wget --no-check-certificate https://iksemel.googlecode.com/files/iksemel-1.4.tar.gz
-tar zxvf iksemel*
+tar zxvf iksemel-1.4.tar.gz
+rm iksemel-1.4.tar.gz
 cd iksemel*
 ./configure --prefix=/usr --with-libgnutls-prefix=/usr
 make
@@ -238,11 +245,15 @@ make install
 echo "/usr/local/lib" > /etc/ld.so.conf.d/iksemel.conf 
 ldconfig
 
+set +e
+
 #setup database
 echo "----> Setup database"
 pear channel-update pear.php.net
 pear install -Z db-1.7.14
 wait
+
+set -e
 
 #install Asterisk packages
 echo "----> Install Asterisk packages"
@@ -256,13 +267,22 @@ else
  ln -fs /usr/src/kernels/`ls -d /usr/src/kernels/*.i686 | cut -f 5 -d "/"` build
 fi
 
+cd /usr/src
+set +e
+rm -r dahdi-linux-complete*
+rm -r libpri-*
+rm -r asterisk-*
+rm -r pjproject-*
+rm -r srtp-*
+set -e
+
 #from source by Billy Chia
 cd /usr/src
 #wget http://downloads.asterisk.org/pub/telephony/dahdi-linux-complete/dahdi-linux-complete-current.tar.gz
 wget http://downloads.asterisk.org/pub/telephony/dahdi-linux-complete/dahdi-linux-complete-2.10.2+2.10.2.tar.gz
 wget http://downloads.asterisk.org/pub/telephony/libpri/libpri-current.tar.gz
-#wget http://downloads.asterisk.org/pub/telephony/asterisk/asterisk-13-current.tar.gz
-wget http://downloads.asterisk.org/pub/telephony/asterisk/asterisk-13.7.2.tar.gz
+wget http://downloads.asterisk.org/pub/telephony/asterisk/asterisk-13-current.tar.gz
+#wget http://downloads.asterisk.org/pub/telephony/asterisk/asterisk-13.7.2.tar.gz
 #wget https://iksemel.googlecode.com/files/iksemel-1.4.tar.gz
 wget http://www.pjsip.org/release/2.2.1/pjproject-2.2.1.tar.bz2
 
@@ -275,9 +295,10 @@ tar jxvf pjproject-2.2.1.tar.bz2
 mv *.tar.gz /tmp
 mv *.tar.bz2 /tmp
 
+set +e
 #adduser asterisk -M -c "Asterisk User"
 adduser asterisk -M -d /var/lib/asterisk -s /sbin/nologin -c "Asterisk User"
-
+set -e
 
 #cd /usr/src/iksemel-*
 #./configure
@@ -285,16 +306,21 @@ adduser asterisk -M -d /var/lib/asterisk -s /sbin/nologin -c "Asterisk User"
 
 cd /usr/src/dahdi-linux-complete*
 make all && make install && make config
+#read -p "PLEASE LOOK FOR ERRORS"
 
 cd /usr/src/libpri*
 make && make install
+#read -p "PLEASE LOOK FOR ERRORS"
 
+set +e
 cd /usr/src
 wget http://srtp.sourceforge.net/srtp-1.4.2.tgz
 tar zxvf srtp-1.4.2.tgz
 cd srtp
 ./configure CFLAGS=-fPIC
 make && make install
+#read -p "PLEASE LOOK FOR ERRORS"
+set -e
 
 cd /usr/src/pjproject*
 if $arch64; then
@@ -304,6 +330,7 @@ else
 fi
 make dep
 make && make install
+#read -p "PLEASE LOOK FOR ERRORS"
 
 #cd /usr/src
 #git clone https://github.com/akheron/jansson.git
@@ -325,20 +352,25 @@ fi
 rpm -Uvh jansson*
 rpm -Uvh jansson-devel*
 fi
+#read -p "PLEASE LOOK FOR ERRORS"
+
 
 cd /usr/src/asterisk-13*
 contrib/scripts/install_prereq install
 contrib/scripts/get_mp3_source.sh 
 wget http://incrediblepbx.com/res_xmpp-13.tar.gz
 tar zxvf res_xmpp-13.tar.gz
+#read -p "PLEASE LOOK FOR ERRORS"
 
 make distclean
 autoconf
 ./bootstrap.sh
+#read -p "PLEASE LOOK FOR ERRORS"
 
 wget http://incrediblepbx.com/menuselect-incredible13.tar.gz
 tar zxvf menuselect-incredible*
 rm -f menuselect-incredible*
+#read -p "PLEASE LOOK FOR ERRORS"
 
 if $arch64; then
  ./configure --libdir=/usr/lib64
@@ -346,17 +378,22 @@ else
  ./configure --libdir=/usr/lib
 fi
 
+echo "--> make menuselect"
 make menuselect.makeopts
 menuselect/menuselect --enable-category  MENUSELECT_ADDONS menuselect.makeopts
 menuselect/menuselect --enable CORE-SOUNDS-EN-GSM --enable MOH-OPSOUND-WAV --enable EXTRA-SOUNDS-EN-GSM --enable cdr_mysql menuselect.makeopts
 menuselect/menuselect --disable app_mysql --disable app_setcallerid --disable func_audiohookinherit --disable res_fax_spandsp menuselect.makeopts
+#read -p "PLEASE LOOK FOR ERRORS"
 
 #expect -c 'set timeout 60;spawn make menuselect;expect "Save";send "\t\t\r";interact'
 #make menuselect
 
+echo "--> make make install make config make samples"
 make && make install && make config && make samples
 ldconfig
+#read -p "PELASE LOOK FOR ERRORS"
 
+echo "--> add flite support"
 #Add Flite support
 #apt-get install libsdl1.2-dev libflite1 flite1-dev flite -y
 cd /usr/src
@@ -376,7 +413,10 @@ fi
 ldconfig
 make
 make install
+#read -p "PLEASE LOOK FOR ERRORS"
 
+
+echo "--> add mp3 support"
 #Add MP3 support
 cd /usr/src
 wget http://sourceforge.net/projects/mpg123/files/mpg123/1.16.0/mpg123-1.16.0.tar.bz2/download
@@ -385,6 +425,7 @@ tar -xjvf mpg123*
 cd mpg123*/
 ./configure && make && make install && ldconfig
 ln -s /usr/local/bin/mpg123 /usr/bin/mpg123
+#read -p "PLEASE LOOK FOR ERRORS"
 
 # Reconfigure Apache for Asterisk
 sed -i "s/User apache/User asterisk/" /etc/httpd/conf/httpd.conf
@@ -398,6 +439,7 @@ else
  service asterisk start
  sed -i 's|module.so|mcrypt.so|' /etc/php.d/mcrypt.ini
 fi
+#read -p "PLEASE LOOK FOR ERRORS"
 
 #Now create the Asterisk user and set ownership permissions.
 echo "----> Create the Asterisk user and set ownership permissions and modify Apache"
