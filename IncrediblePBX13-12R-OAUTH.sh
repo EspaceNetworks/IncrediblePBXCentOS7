@@ -283,6 +283,11 @@ pear channel-update pear.php.net
 pear install -Z db-1.7.14
 wait
 
+#pear Console_Getopt from FreePBX 13 wiki.
+echo "--> Pear legacy"
+pear install Console_Getopt
+wait
+
 #install Asterisk packages
 echo "----> Install Asterisk packages"
 
@@ -301,7 +306,7 @@ rm -r dahdi-linux-complete*
 rm -r libpri-*
 rm -r asterisk-*
 rm -r pjproject-*
-rm -r srtp-*
+rm -r srtp*
 
 set -e
 
@@ -313,13 +318,13 @@ wget http://downloads.asterisk.org/pub/telephony/libpri/libpri-current.tar.gz
 wget http://downloads.asterisk.org/pub/telephony/asterisk/asterisk-13-current.tar.gz
 #wget http://downloads.asterisk.org/pub/telephony/asterisk/asterisk-13.7.2.tar.gz
 #wget https://iksemel.googlecode.com/files/iksemel-1.4.tar.gz
-wget http://www.pjsip.org/release/2.2.1/pjproject-2.2.1.tar.bz2
+wget http://www.pjsip.org/release/2.5.5/pjproject-2.5.5.tar.bz2
 
 tar zxvf dahdi-linux-complete*
 tar zxvf libpri*
 tar zxvf asterisk*
 #tar zxvf iksemel-*.tar.gz
-tar jxvf pjproject-2.2.1.tar.bz2
+tar jxvf pjproject-*.tar.bz2
 
 mv *.tar.gz /tmp
 mv *.tar.bz2 /tmp
@@ -340,15 +345,21 @@ make all && make install && make config
 cd /usr/src/libpri*
 make && make install
 #read -p "PLEASE LOOK FOR ERRORS"
+cd ..
+rm -r libpri*
 
 set +e
 cd /usr/src
-wget http://srtp.sourceforge.net/srtp-1.4.2.tgz
-tar zxvf srtp-1.4.2.tgz
-cd srtp
+#wget http://srtp.sourceforge.net/srtp-1.4.2.tgz
+wget -Osrtp-2.0.0.tgz https://github.com/cisco/libsrtp/archive/v2.0.0.tar.gz
+tar zxvf srtp-*.tgz
+rm srtp-*.tgz
+cd srtp*
 ./configure CFLAGS=-fPIC
-make && make install
+make && make runtest && make uninstall && make install
 #read -p "PLEASE LOOK FOR ERRORS"
+cd ..
+rm -r srtp*
 set -e
 
 cd /usr/src/pjproject*
@@ -378,8 +389,9 @@ else
  wget ftp://ftp.pbone.net/mirror/download.fedora.redhat.com/pub/fedora/epel/6/i386/jansson-2.6-1.el6.i686.rpm
  wget ftp://ftp.pbone.net/mirror/download.fedora.redhat.com/pub/fedora/epel/6/i386/jansson-devel-2.6-1.el6.i686.rpm
 fi
-rpm -Uvh jansson*
+rpm -Uvh jansson-*
 rpm -Uvh jansson-devel*
+rm jansson-*
 fi
 #read -p "PLEASE LOOK FOR ERRORS"
 
@@ -444,11 +456,26 @@ make
 make install
 #read -p "PLEASE LOOK FOR ERRORS"
 
+echo "--> add higher quality sound files"
+cd /var/lib/asterisk/sounds
+wget http://downloads.asterisk.org/pub/telephony/sounds/asterisk-core-sounds-en-wav-current.tar.gz
+wget http://downloads.asterisk.org/pub/telephony/sounds/asterisk-extra-sounds-en-wav-current.tar.gz
+tar xvf asterisk-core-sounds-en-wav-current.tar.gz
+rm -f asterisk-core-sounds-en-wav-current.tar.gz
+tar xfz asterisk-extra-sounds-en-wav-current.tar.gz
+rm -f asterisk-extra-sounds-en-wav-current.tar.gz
+# Wideband Audio download
+wget http://downloads.asterisk.org/pub/telephony/sounds/asterisk-core-sounds-en-g722-current.tar.gz
+wget http://downloads.asterisk.org/pub/telephony/sounds/asterisk-extra-sounds-en-g722-current.tar.gz
+tar xfz asterisk-extra-sounds-en-g722-current.tar.gz
+rm -f asterisk-extra-sounds-en-g722-current.tar.gz
+tar xfz asterisk-core-sounds-en-g722-current.tar.gz
+rm -f asterisk-core-sounds-en-g722-current.tar.gz
 
 echo "--> add mp3 support"
-#Add MP3 support
+#Add MP3 support. upgrade from 1.16.0 to 1.23.6.
 cd /usr/src
-wget http://sourceforge.net/projects/mpg123/files/mpg123/1.16.0/mpg123-1.16.0.tar.bz2/download
+wget http://sourceforge.net/projects/mpg123/files/mpg123/1.23.6/mpg123-1.23.6.tar.bz2/download
 mv download mpg123.tar.bz2
 tar -xjvf mpg123*
 cd mpg123*/
@@ -784,16 +811,20 @@ fi
 #echo "Installing SendMail..."
 #apt-get install sendmail -y
 
-# Installing WebMin from /root rpm
-# you may not get the latest but it won't blow up either
-echo "Installing WebMin..."
+# Installing WebMin from official repo!
 cd /root
-yum -y install perl perl-Net-SSLeay openssl perl-IO-Tty
-TEST=`rpm -qa webmin`
-if [[ ! "$TEST" ]]; then
- wget http://prdownloads.sourceforge.net/webadmin/webmin-1.791-1.noarch.rpm
- rpm -Uvh webmin*
-fi
+echo "Installing WebMin..."
+wget http://www.webmin.com/jcameron-key.asc
+rpm --import jcameron-key.asc
+rm jcameron-key.asc
+cp webmin.repo /etc/yum.repos.d
+yum -y install webmin
+#yum -y install perl perl-Net-SSLeay openssl perl-IO-Tty
+#TEST=`rpm -qa webmin`
+#if [[ ! "$TEST" ]]; then
+# wget http://prdownloads.sourceforge.net/webadmin/webmin-1.791-1.noarch.rpm
+# rpm -Uvh webmin*
+#fi
 sed -i 's|10000|9001|g' /etc/webmin/miniserv.conf
 service webmin restart
 chkconfig webmin on

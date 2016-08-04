@@ -1,0 +1,15 @@
+#!/bin/bash
+clear
+echo "This script changes your admin password for FreePBX 2.11 access."
+echo " "
+
+echo -n "Enter new admin password (MAKE IT SECURE!!): "
+read adminpw
+echo " "
+echo "admin password will be changed to: $adminpw"
+read -p "Press ENTER key to continue or Ctrl-C to abort..."
+mysql -u root -ppassw0rd -e "update asterisk.ampusers set password_sha1 = '`echo -n $adminpw | sha1sum`' where username = 'admin' limit 1;"
+echo " "
+ip=$(/sbin/ip -o -4 addr list eth0 | awk '{print $4}' | cut -d/ -f1)
+echo "Done. Use browser to access FreePBX at http://$ip"
+echo " "

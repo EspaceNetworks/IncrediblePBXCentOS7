@@ -1,0 +1,17 @@
+#!/bin/bash
+clear
+echo "This script changes your AvantFAX admin password"
+echo " "
+
+echo -n "Enter new admin password (MAKE IT SECURE!!): "
+read adminpw
+echo " "
+echo "admin password will be changed to: $adminpw"
+read -p "Press ENTER key to continue or Ctrl-C to abort..."
+
+mysql -u root -ppassw0rd -e "update avantfax.UserAccount set password = '`echo -n "$adminpw" | md5sum | awk '{ print $1 }'`' where username = 'admin' limit 1;"
+mysql -u root -ppassw0rd -e "insert into avantfax.UserPasswords set uid = 1, pwdhash = '`echo -n "$adminpw" | md5sum | awk '{ print $1 }'`';"
+echo " "
+ip=$(/sbin/ip -o -4 addr list eth0 | awk '{print $4}' | cut -d/ -f1)
+echo "Done. Use browser to access AvantFAX via link in FreePBX at http://$ip"
+echo " "
