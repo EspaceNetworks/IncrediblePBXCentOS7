@@ -26,6 +26,8 @@
 #
 
 clear
+set -o nounset
+#set -o errexit
 
 if [ -e "/etc/pbx/.incredible" ]; then
  echo "Incredible PBX is already installed."
@@ -115,7 +117,9 @@ else
  release="6"
 fi
 
+set +e
 setenforce 0
+set -e
 
 if [ ! -f /root/DMI ]; then
 # patch to fix the system time once and for all
@@ -148,31 +152,68 @@ cd /root
 chattr +i add-*
 chattr +i del-*
 
-# Installing packages needed to work with Asterisk
-yum -y install glibc* yum-fastestmirror opens* anaconda* poppler-utils perl-Digest-SHA1 perl-Crypt-SSLeay xorg-x11-drv-qxl dialog binutils* mc sqlite sqlite-devel libstdc++-devel tzdata SDL* syslog-ng syslog-ng-libdbi texinfo uuid-devel libuuid-devel
-yum -y install cairo* atk* freetds freetds-devel
+echo "-->  Installing packages needed to work with Asterisk"
+echo "---> first 8"
+yum -y --skip-broken install glibc* yum-fastestmirror opens* anaconda* poppler-utils perl-Digest-SHA1 perl-Crypt-SSLeay xorg-x11-drv-qxl
+echo "---> next 13"
+yum -y --skip-broken install dialog binutils* mc sqlite sqlite-devel libstdc++-devel tzdata SDL* syslog-ng syslog-ng-libdbi texinfo uuid-devel libuuid-devel
+echo "--> next 4"
+yum -y --skip-broken install cairo* atk* freetds freetds-devel
 # can't find lame
 #yum -y install lame lame-devel
 # can't find fail2ban
 #yum -y install fail2ban
+echo "--> redhat-lsb-core"
 yum -y install redhat-lsb-core
-yum -y groupinstall additional-devel base cifs-file-server compat-libraries console-internet core debugging development mail-server ftp-server hardware-monitoring java-platform legacy-unix mysql network-file-system-client network-tools php performance perl-runtime security-tools server-platform server-policy system-management system-admin-tools web-server
-yum -y install gnutls-devel gnutls-utils mysql* mariadb* libtool-ltdl-devel lua-devel libsrtp-devel speex* php-mysql php-mbstring perl-JSON php-process
-yum -y install sox
-yum -y install perl-LWP-Protocol-https
+echo "--> groupinstall 25 groups!"
+echo "--> additional-devel"
+yum -y --skip-broken groupinstall additional-devel 
+echo "--> base"
+yum -y groupinstall base 
+echo "--> cifs-file-server"
+yum -y groupinstall cifs-file-server 
+echo "--> compat-libraries"
+yum -y groupinstall compat-libraries
+echo "--> console-internet"
+yum -y groupinstall console-internet
+echo "--> core"
+yum -y --skip-broken groupinstall core
+yum -y groupinstall debugging
+yum -y groupinstall development
+yum -y groupinstall mail-server
+yum -y groupinstall ftp-server
+yum -y --skip-broken groupinstall hardware-monitoring
+yum -y --skip-broken groupinstall java-platform
+yum -y --skip-broken groupinstall legacy-unix
+yum -y --skip-broken groupinstall mysql
+yum -y --skip-broken groupinstall network-file-system-client
+yum -y --skip-broken groupinstall network-tools 
+yum -y --skip-broken groupinstall php 
+yum -y --skip-broken groupinstall performance perl-runtime security-tools server-platform
+yum -y --skip-broken groupinstall  server-policy system-management system-admin-tools web-server
+yum -y --skip-broken install gnutls-devel gnutls-utils mysql* mariadb* libtool-ltdl-devel lua-devel libsrtp-devel speex* php-mysql php-mbstring perl-JSON php-process
+yum -y --skip-broken install sox
+yum -y --skip-broken install perl-LWP-Protocol-https
+echo "--> Done installing packages neede to work with asterisk"
 
+
+echo "--> mariadb and mysql"
 if [[ "$release" = "7" ]]; then
+ set +e
  ln -s /usr/lib/systemd/system/mariadb.service /usr/lib/systemd/system/mysqld.service
+ set -e
  echo "#\!/bin/bash" > /etc/init.d/mysqld
  sed -i 's|\\||' /etc/init.d/mysqld
  echo "service mariadb \$1" >> /etc/init.d/mysqld
  chmod +x /etc/init.d/mysqld
  chkconfig --levels 235 mariadb on
+else
+ chkconfig --levels 235 mysqld on
 fi
-chkconfig --levels 235 mysqld on
-
+echo "--> done mariadb and mysql"
 
 # http://rpmfind.net/linux/rpm2html/search.php?query=spandsp
+rm -f spandsp*
 TEST=`rpm -qa spandsp`
 if [[ ! "$TEST" ]]; then
 if $arch64; then
@@ -182,7 +223,7 @@ else
  wget ftp://ftp.pbone.net/mirror/ftp5.gwdg.de/pub/opensuse/repositories/home:/dkdegroot:/asterisk/CentOS_CentOS-6/i686/spandsp-0.0.6-35.1.i686.rpm
  wget ftp://ftp.pbone.net/mirror/ftp5.gwdg.de/pub/opensuse/repositories/home:/dkdegroot:/asterisk/CentOS_CentOS-6/i686/spandsp-devel-0.0.6-35.1.i686.rpm
 fi
-rpm -ivh spandsp*
+rpm -ivh spandsp-*
 rm -f spandsp-*
 wait
 fi
@@ -201,10 +242,10 @@ else
   wget http://repository.it4i.cz/mirrors/repoforge/redhat/el6/en/i386/rpmforge/RPMS/rpmforge-release-0.5.3-1.el6.rf.i686.rpm
  fi
 fi
+set +e
 rpm -Uvh rpmforge-release-*
 rm -f rpmforge-release-*
-
-#set -e
+set -e
 
 #install yumlist AFTER installing the epel repo
 #cd /root
@@ -212,13 +253,14 @@ rm -f rpmforge-release-*
 ##rm -f yumlist.txt
 ##touch yumlist.txt
 
-#set -e
+set +e
 
 # get the epel repo
+rm -f epel-release-latest-*.noarch.rpm*
 if [[ "$release" = "6" ]]; then
- wget http://download.fedoraproject.org/pub/epel/6/x86_64/epel-release-6-8.noarch.rpm
- rpm -Uvh epel-release-6-8.noarch.rpm
- rm -f epel-release-6-8.noarch.rpm
+ wget https://dl.fedoraproject.org/pub/epel/epel-release-latest-6.noarch.rpm
+ rpm -Uvh epel-release-latest-6.noarch.rpm
+ rm -f epel-release-latest-6.noarch.rpm
 fi
 if [[ "$release" = "7" ]]; then
  wget https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
@@ -233,13 +275,14 @@ fi
 # install pip for python packages.
 yum install -y python-pip
 pip install --upgrade pip
-pip install simplejson
+pip install --upgrade simplejson
+pip install --upgrade setuptools
 
-#set -e
+set +e
 
 # NOW that repos are installed, install the yumlist
 cd /root
-yum -y install $(cat yumlist.txt)
+yum -y --skip-broken install $(cat yumlist.txt)
 #yum -y install freetds freetds-devel
 
 # set up NTP
@@ -263,10 +306,13 @@ then
 fi
 
 
+set -e
+
 cd /usr/src
+rm -f iksemel-*.tar.gz*
 wget --no-check-certificate https://iksemel.googlecode.com/files/iksemel-1.4.tar.gz
 tar zxvf iksemel-1.4.tar.gz
-rm iksemel-1.4.tar.gz
+rm -f iksemel-*.tar.gz*
 cd iksemel*
 ./configure --prefix=/usr --with-libgnutls-prefix=/usr
 make
@@ -320,9 +366,9 @@ wget http://downloads.asterisk.org/pub/telephony/asterisk/asterisk-13-current.ta
 #wget https://iksemel.googlecode.com/files/iksemel-1.4.tar.gz
 wget http://www.pjsip.org/release/2.5.5/pjproject-2.5.5.tar.bz2
 
-tar zxvf dahdi-linux-complete*
-tar zxvf libpri*
-tar zxvf asterisk*
+tar zxvf dahdi-linux-complete-*.tar.gz
+tar zxvf libpri-*.tar.gz
+tar zxvf asterisk-*.tar.gz
 #tar zxvf iksemel-*.tar.gz
 tar jxvf pjproject-*.tar.bz2
 
@@ -353,7 +399,7 @@ cd /usr/src
 #wget http://srtp.sourceforge.net/srtp-1.4.2.tgz
 wget -Osrtp-2.0.0.tgz https://github.com/cisco/libsrtp/archive/v2.0.0.tar.gz
 tar zxvf srtp-*.tgz
-rm srtp-*.tgz
+rm -f srtp-*.tgz
 cd srtp*
 ./configure CFLAGS=-fPIC
 make && make runtest && make uninstall && make install
@@ -391,17 +437,19 @@ else
 fi
 rpm -Uvh jansson-*
 rpm -Uvh jansson-devel*
-rm jansson-*
+#rm jansson-*.rpm
 fi
 #read -p "PLEASE LOOK FOR ERRORS"
 
-
-cd /usr/src/asterisk-13*
+set +e
+echo "--> build asterisk..."
+cd /usr/src/asterisk-*
 contrib/scripts/install_prereq install
 contrib/scripts/get_mp3_source.sh 
 wget http://incrediblepbx.com/res_xmpp-13.tar.gz
 tar zxvf res_xmpp-13.tar.gz
 #read -p "PLEASE LOOK FOR ERRORS"
+set -e
 
 make distclean
 autoconf
@@ -409,8 +457,8 @@ autoconf
 #read -p "PLEASE LOOK FOR ERRORS"
 
 wget http://incrediblepbx.com/menuselect-incredible13.tar.gz
-tar zxvf menuselect-incredible*
-rm -f menuselect-incredible*
+tar zxvf menuselect-incredible13.tar.gz*
+rm -f menuselect-incredible*.tar.gz*
 #read -p "PLEASE LOOK FOR ERRORS"
 
 if $arch64; then
@@ -420,6 +468,8 @@ else
 fi
 
 echo "--> make menuselect"
+#make menuselect
+expect -c 'set timeout 10;spawn make menuselect;expect "Save";send "\t\t\r";interact'
 make menuselect.makeopts
 menuselect/menuselect --enable-category  MENUSELECT_ADDONS menuselect.makeopts
 menuselect/menuselect --enable CORE-SOUNDS-EN-GSM --enable MOH-OPSOUND-WAV --enable EXTRA-SOUNDS-EN-GSM --enable cdr_mysql menuselect.makeopts
@@ -434,53 +484,72 @@ make && make install && make config && make samples
 ldconfig
 #read -p "PELASE LOOK FOR ERRORS"
 
-echo "--> add flite support"
+echo "--> add Asterisk-Flite (text to speech) support"
 #Add Flite support
 #apt-get install libsdl1.2-dev libflite1 flite1-dev flite -y
 cd /usr/src
 # git clone https://github.com/zaf/Asterisk-Flite.git
 #wget --no-check-certificate https://github.com/downloads/zaf/Asterisk-Flite/Asterisk-Flite-2.2-rc1-flite1.3.tar.gz
+set +e
+#Remove old folders and tarballs leftover.
+rm -rf *Asterisk-Flite-*
+set -e
 if [[ "$release" = "7" ]]; then
- wget http://incrediblepbx.com/Asterisk-Flite-2.2-rc1-flite1.3.tar.gz
- tar zxvf Asterisk-Flite*
- cd Asterisk-Flite*
+ #wget http://incrediblepbx.com/Asterisk-Flite-2.2-rc1-flite1.3.tar.gz
+ #tar zxvf Asterisk-Flite*
+ #cd Asterisk-Flite*
+ echo " "
 else
- yum -y install flite flite-devel
- sed -i 's|enabled=1|enabled=0|' /etc/yum.repos.d/epel.repo
- wget http://incrediblepbx.com/Asterisk-Flite-2.2-rc1-flite1.3.tar.gz
- tar zxvf Asterisk-Flite*
- cd Asterisk-Flite*
+ yum -y --skip-broken install flite flite-devel
+ #sed -i 's|enabled=1|enabled=0|' /etc/yum.repos.d/epel.repo
+ #wget http://incrediblepbx.com/Asterisk-Flite-2.2-rc1-flite1.3.tar.gz
+ #tar zxvf Asterisk-Flite*
+ #cd Asterisk-Flite*
 fi
+wget -OAsterisk-Flite-current.tar.gz http://github.com/zaf/Asterisk-Flite/tarball/flite-1.3
+tar zxvf Asterisk-Flite-current.tar.gz
+# which extracts it into new folder zaf-Asterisk-Flite-(random number)
+rm -f Asterisk-Flite-current.tar.gz
+cd *Asterisk-Flite-*
 ldconfig
 make
 make install
+cd /usr/src
+rm -rf *Asterisk-Flite-*
+set -e
 #read -p "PLEASE LOOK FOR ERRORS"
 
-echo "--> add higher quality sound files"
+echo "--> add higher quality (g722 HD Voice) sound files"
 cd /var/lib/asterisk/sounds
 wget http://downloads.asterisk.org/pub/telephony/sounds/asterisk-core-sounds-en-wav-current.tar.gz
 wget http://downloads.asterisk.org/pub/telephony/sounds/asterisk-extra-sounds-en-wav-current.tar.gz
+# Narrowband Audio G.711 8 kHz voice at 64 kbit/sec
 tar xvf asterisk-core-sounds-en-wav-current.tar.gz
-rm -f asterisk-core-sounds-en-wav-current.tar.gz
+#rm -f asterisk-core-sounds-en-wav-current.tar.gz
 tar xfz asterisk-extra-sounds-en-wav-current.tar.gz
-rm -f asterisk-extra-sounds-en-wav-current.tar.gz
-# Wideband Audio download
+#rm -f asterisk-extra-sounds-en-wav-current.tar.gz
+# Wideband Audio HD Voice G.722 16 kHz at 64 kbit/sec
 wget http://downloads.asterisk.org/pub/telephony/sounds/asterisk-core-sounds-en-g722-current.tar.gz
 wget http://downloads.asterisk.org/pub/telephony/sounds/asterisk-extra-sounds-en-g722-current.tar.gz
 tar xfz asterisk-extra-sounds-en-g722-current.tar.gz
-rm -f asterisk-extra-sounds-en-g722-current.tar.gz
+#rm -f asterisk-extra-sounds-en-g722-current.tar.gz
 tar xfz asterisk-core-sounds-en-g722-current.tar.gz
-rm -f asterisk-core-sounds-en-g722-current.tar.gz
+#rm -f asterisk-core-sounds-en-g722-current.tar.gz
 
 echo "--> add mp3 support"
 #Add MP3 support. upgrade from 1.16.0 to 1.23.6.
 cd /usr/src
-wget http://sourceforge.net/projects/mpg123/files/mpg123/1.23.6/mpg123-1.23.6.tar.bz2/download
-mv download mpg123.tar.bz2
-tar -xjvf mpg123*
+rm -rf mpg123.tar.bz2*
+wget -Ompg123.tar.bz2 http://sourceforge.net/projects/mpg123/files/mpg123/1.23.6/mpg123-1.23.6.tar.bz2/download
+#mv download mpg123.tar.bz2
+tar -xjvf mpg123.tar.bz2
+rm -f mpg123.tar.bz2*
 cd mpg123*/
 ./configure && make && make install && ldconfig
+set +e
+# maybe link already exists, if so, it's ok, don't fail, they probably already ran this script before.
 ln -s /usr/local/bin/mpg123 /usr/bin/mpg123
+set -e
 #read -p "PLEASE LOOK FOR ERRORS"
 
 # Reconfigure Apache for Asterisk
@@ -488,8 +557,10 @@ sed -i "s/User apache/User asterisk/" /etc/httpd/conf/httpd.conf
 sed -i "s/Group apache/Group asterisk/" /etc/httpd/conf/httpd.conf
 
 if [[ "$release" = "7" ]]; then
- /etc/init.d/dahdi start
- /etc/init.d/asterisk start
+ #/etc/init.d/dahdi start
+ #/etc/init.d/asterisk start
+ service dahdi start
+ service asterisk start
 else
  service dahdi start
  service asterisk start
@@ -497,6 +568,8 @@ else
 fi
 #read -p "PLEASE LOOK FOR ERRORS"
 
+# if these already exist, don't fail, it's ok.
+set +e
 #Now create the Asterisk user and set ownership permissions.
 echo "----> Create the Asterisk user and set ownership permissions and modify Apache"
 #adduser asterisk -M -d /var/lib/asterisk -s /sbin/nologin -c "Asterisk User"
@@ -539,8 +612,11 @@ echo "----> Download and extract base install for GUI..."
 service asterisk stop
 
 cd /usr/src
-wget http://incrediblepbx.com/freepbx-12.0.70.tgz
-tar vxfz freepbx-12.0.70.tgz
+#wget http://incrediblepbx.com/freepbx-12.0.70.tgz
+rm -rf freepbx
+wget http://mirror.freepbx.org/modules/packages/freepbx/freepbx-12.0-latest.tgz
+tar vxfz freepbx-*.tgz
+rm -f freepbx-*.tgz*
 
 chown asterisk. /var/run/asterisk
 chown -R asterisk. /etc/asterisk
@@ -637,7 +713,7 @@ chattr +i /usr/local/sbin/*
 
 wget http://incrediblepbx.com/incredible13-12-image.tar.gz
 tar zxvf incredible13-12-image.tar.gz
-rm incredible13-12-image.tar.gz
+rm -f incredible13-12-image.tar.gz*
 
 chown -R asterisk:asterisk /var/www/html/*
 chattr -i /usr/local/sbin/amportal
@@ -765,7 +841,7 @@ badline=`grep -n "\-s  \-p" /etc/sysconfig/iptables | cut -f1 -d: | tail -1`
 done
 sed -i 's|-A INPUT -s  -j|#-A INPUT -s  -j|g' /etc/sysconfig/iptables
 #Installing Fail2Ban
-yum -y install fail2ban
+yum -y --skip-broken install fail2ban
 # chronyd causes problems
 if [[ "$release" = "7" ]]; then
  chkconfig chronyd off
@@ -818,7 +894,7 @@ wget http://www.webmin.com/jcameron-key.asc
 rpm --import jcameron-key.asc
 rm jcameron-key.asc
 cp webmin.repo /etc/yum.repos.d
-yum -y install webmin
+yum -y --skip-broken install webmin
 #yum -y install perl perl-Net-SSLeay openssl perl-IO-Tty
 #TEST=`rpm -qa webmin`
 #if [[ ! "$TEST" ]]; then
@@ -834,7 +910,7 @@ cd /root
 #mkdir pygooglevoice
 yum -y install python-setuptools
 easy_install -U setuptools
-yum -y install python-simplejson
+#yum -y install python-simplejson
 #easy_install simplejson
 #cd pygooglevoice
 #wget http://nerdvittles.dreamhosters.com/pbxinaflash/source/pygooglevoice/pygooglevoice.tar.gz
@@ -1162,7 +1238,7 @@ rm -f update-speeddial.tar.gz
 cd /root
 wget http://incrediblepbx.com/upgrade-asterisk-to-current.tar.gz
 tar zxvf upgrade-asterisk-to-current.tar.gz
-rm -f upgrade-asterisk-to-current.tar.gz
+rm -f upgrade-asterisk-to-current.tar.gz*
 
 # Asterisk 13 patch to make local calling work... no idea why
 cd /usr/src/asterisk-13*
@@ -1185,7 +1261,7 @@ amportal a r
 cd /root
 wget http://incrediblepbx.com/GPG-patch.tar.gz
 tar zxvf GPG-patch.tar.gz
-rm -f GPG-patch.tar.gz
+rm -f GPG-patch.tar.gz*
 ./GPG-patch
 
 # patch for Incredible PBX Lean VMware OVF installs
@@ -1213,6 +1289,7 @@ else
  cd /
  wget http://incrediblepbx.com/picotts.tar.gz
  tar zxvf picotts.tar.gz
+ rm -f picotts.tar.gz*
  cd /root
  ./picotts-install.sh
  sed -i 's|en)|en-US)|' /etc/asterisk/extensions_custom.conf
