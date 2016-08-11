@@ -1,0 +1,22 @@
+#!/bin/bash
+/etc/init.d/iptables restart 2>/tmp/errorfile
+TEST=`cat /tmp/errorfile`
+while [[ "$TEST" == *Error* ]]; do
+ LINENUM=`cat /tmp/errorfile | cut -f 2 -d ":" | tail -2 | head -n 1 | tr -d ' '`
+ FQDN=`cat /tmp/errorfile | cut -f 1 -d "'" | head -n 1 | cut -f 4 -d " "`
+ echo " "
+ echo "******** 10-SECOND WARNING ALERT ***********"
+ echo "IPtables FQDN problem on line: $LINENUM"
+ echo "The unresolvable FQDN is $FQDN."
+ echo "This rule will be temporarily disabled to allow IPtables to start."
+ echo "Check commented out line $LINENUM in /etc/sysconfig/iptables."
+ echo "******** 10-SECOND WARNING ALERT ***********"
+ echo " "
+ sed -i "$LINENUM s:^:#***:" /etc/sysconfig/iptables
+ sleep 10
+ /etc/init.d/iptables restart 2>/tmp/errorfile
+ TEST=`cat /tmp/errorfile`
+done
+sed -i 's|#\*\*\*||' /etc/sysconfig/iptables
+echo "No IPtables problems found."
+
