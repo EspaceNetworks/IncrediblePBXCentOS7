@@ -134,7 +134,7 @@ sed -i '/# End of Trusted Provider Section/r '$tmpfile'' /etc/sysconfig/iptables
 
 rm $tmpfile
 
-iptest=`service iptables-persistent restart | grep fail`
+iptest=`service iptables restart 2>&1 | grep fail`
 if [[ $iptest = *fail* ]]; then
  echo "Oops. There was an error adding $2. Restarting IPtables..."
  sed -i '\:// New entry for '$acct':,\:// End entry for '$acct':d' /etc/sysconfig/iptables
