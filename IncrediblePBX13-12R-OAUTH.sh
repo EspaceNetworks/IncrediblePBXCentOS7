@@ -96,22 +96,32 @@ export ADMIN_PASS=passw0rd
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 export PATH
 
-centos=x86_64
-test=`uname -m`
-if [[ "$centos" = "$test" ]]; then
+#centos=x86_64
+testarch=`uname -m`
+if [[ "x86_64" = "$testarch" ]]; then
  arch64=true
 else
  arch64=false
 fi
 
-if [[ "i686" = "$test" ]]; then
+if [[ "i686" = "$testarch" ]]; then
  arch32=true
 else
  arch32=false
+ if [[ "i386" = "$testarch" ]]; then
+ arch32=true
 fi
 
-test=`cat /etc/redhat-release | grep 6`
-if [[ -z $test ]]; then
+if [ ! -e /etc/redhat-release ]; then
+ echo "Failed to detect CentOS or a RedHat compatible OS distro. Exiting..."
+ exit 1
+else
+ read -p "Detected CentOS or RedHat compatible OS disto. Enter to continue or Ctrl-C to exit."
+fi
+
+
+testversion=`cat /etc/redhat-release | grep " 6."`
+if [[ -z $testversion ]]; then
  release="7"
 else
  release="6"
@@ -212,8 +222,9 @@ else
 fi
 echo "--> done mariadb and mysql"
 
+echo "--> spandsp"
 # http://rpmfind.net/linux/rpm2html/search.php?query=spandsp
-rm -f spandsp*
+rm -rf spandsp*
 TEST=`rpm -qa spandsp`
 if [[ ! "$TEST" ]]; then
 if $arch64; then
@@ -223,8 +234,8 @@ else
  wget ftp://ftp.pbone.net/mirror/ftp5.gwdg.de/pub/opensuse/repositories/home:/dkdegroot:/asterisk/CentOS_CentOS-6/i686/spandsp-0.0.6-35.1.i686.rpm
  wget ftp://ftp.pbone.net/mirror/ftp5.gwdg.de/pub/opensuse/repositories/home:/dkdegroot:/asterisk/CentOS_CentOS-6/i686/spandsp-devel-0.0.6-35.1.i686.rpm
 fi
-rpm -ivh spandsp-*
-rm -f spandsp-*
+rpm -ivh spandsp-*.rpm
+rm -rf spandsp-*.rpm
 wait
 fi
 
