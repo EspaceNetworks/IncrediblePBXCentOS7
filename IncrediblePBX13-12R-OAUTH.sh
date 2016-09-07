@@ -120,11 +120,19 @@ else
 fi
 
 
-testversion=`cat /etc/redhat-release | grep " 6."`
-if [[ -z $testversion ]]; then
- release="7"
-else
- release="6"
+#testversion=`cat /etc/redhat-release | grep " 6."`
+release=$(lsb_release -rs | cut -f1 -d.)
+#if [[ -z $testversion ]]; then
+# release="7"
+#else
+# release="6"
+#fi
+# lsb_release returns "7.2.9483".
+# release will equal 6 or 7 or whatever the major version is.
+
+if [ $release -lt "6" ]; then 
+  echo "OS major version requirement not met: Require CentOS/RedHat 6.x or 7.x (or above). Exiting..."
+  exit 1
 fi
 
 set +e
