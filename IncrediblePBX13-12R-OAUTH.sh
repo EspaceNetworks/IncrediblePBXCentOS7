@@ -930,11 +930,15 @@ easy_install -U setuptools
 #python setup.py install
 #rm -f pygooglevoice.tar.gz
 #cp /root/pygooglevoice/bin/gvoice /usr/bin/.
-yum -y install mercurial
-hg clone https://code.google.com/r/kkleidal-pygooglevoiceupdate/
-cd kk*
+#yum -y install mercurial
+#hg clone https://code.google.com/r/kkleidal-pygooglevoiceupdate/
+#cd kk*
+git clone https://github.com/pettazz/pygooglevoice
+cd pygooglevoice
 python setup.py install
 cp -p bin/gvoice /usr/bin/.
+cd /root
+rm -rf pygooglevoice
 
 echo "asterisk ALL = NOPASSWD: /sbin/shutdown" >> /etc/sudoers
 echo "asterisk ALL = NOPASSWD: /sbin/reboot" >> /etc/sudoers
