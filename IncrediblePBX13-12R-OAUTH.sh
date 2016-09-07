@@ -1229,6 +1229,7 @@ rm -f /etc/rc.local
 sed -i '/local/d' /etc/rc.d/rc.local
 sed -i '/exit/d' /etc/rc.d/rc.local
 sed -i '/sleep/d' /etc/rc.d/rc.local
+chmod a+x /etc/rc.d/rc.local
 ln -s /etc/rc.d/rc.local /etc/rc.local
 echo "touch /var/lock/subsys/local" >> /etc/rc.local
 echo "sleep 5" >> /etc/rc.local
