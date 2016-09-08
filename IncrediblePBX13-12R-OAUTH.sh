@@ -924,6 +924,11 @@ sed -i 's|10000|9001|g' /etc/webmin/miniserv.conf
 service webmin restart
 chkconfig webmin on
 
+echo "Getting Webmin module for Asterisk server..."
+cd /root
+wget http://downloads.asterisk.org/pub/telephony/asterisk/webmin/webmin.tgz
+
+
 echo "Installing command line gvoice for SMS messaging..."
 cd /root
 #mkdir pygooglevoice
