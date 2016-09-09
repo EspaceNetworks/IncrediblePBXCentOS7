@@ -14,6 +14,15 @@
 #       Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #       MA 02110-1301, USA.
 
+# 09 Sept 2016 Additional fixes to allow script to stop on fatal errors, 
+#              and to reinstall over an existing or botched install, 
+#              with far less chance of problem. Check for root. 
+#              Check for minimum version 6 of CentOS/RedHat.
+#              Check for CentOS/RedHat or exit.
+#              Patch AvantFax to work right. 
+#              Remove http login for avantfax.
+#              Patch php.ini error_log to syslog to send cover page.
+#              -Chris Coleman, Espace LLC, github.com/EspaceNetworks
 # ver. 11.4 fixed numerous quirks to make the script capable of running a second time
 # added support for Asterisk 13
 # also added support for SHMZ OS with FreePBX Distro and AsteriskNOW
@@ -33,15 +42,35 @@
 # removed test for Incredible
 # Install Fax
 
-COLOR=`cat /etc/pbx/.color`
-if [ -z "$COLOR" ]
-then
- echo "Sorry. This installer requires PBX in a Flash 2.0.6.3.1 or later."
+set -e
+set -u
+
+if [ `whoami` != root ]; then
+    echo "Please run this script as root or using sudo. Priveleges required to install system packages and update the system to enable fax server."
+    exit 1
 fi
-if [ "$COLOR" != "GREEN" ]
-then
- echo "Sorry. This installer requires PIAF-Green with CentOS 6.3 or 6.4."
+
+if [[ ! -e /etc/redhat-release ]]; then
+  echo "Sorry. This fax installer requires CentOS/RedHat OS verson 6, 7, or higher."
+  exit 1
 fi
+
+PBXVERSION=`cat /etc/pbx/.version`
+if [ -z $PBXVERSION ]
+then
+  COLOR=`cat /etc/pbx/.color`
+  if [ -z "$COLOR" ]
+  then
+    echo "Sorry. This installer requires PBX in a Flash 2.0.6.3.1 or later."
+    exit 1
+  fi
+  if [ "$COLOR" != "GREEN" ]
+  then
+    echo "Sorry. This installer requires PIAF-Green with CentOS 6.3 or 6.4."
+    exit 1
+  fi
+fi
+
 
 clear
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -68,27 +97,32 @@ clear
 MYSQLASTERISKUSERPASSWORD=amp109
 
 
-LOAD_LOC=/usr/src/
+LOAD_LOC=/usr/src
 
 cd $LOAD_LOC
 
 # install some dependencies
+set +e
 sed -i 's|enabled=0|enabled=1|' /etc/yum.repos.d/FreePBX.repo
+set -e
+
 yum -y install ghostscript ghostscript-fonts sharutils perl-CGI
 yum -y install netpbm-progs ImageMagick-devel libungif vixie-cron
 
 #Install Hylafax first so that the directories are in place
-#processor=`uname -i`
-#centos=${processor:1:3}
+processor=`uname -i`
+centos=${processor:1:3}
+
 #if [ $centos != 386 ]
 #then
-# wget ftp://ftp.pbone.net/mirror/ftp.sourceforge.net/pub/sourceforge/h/hy/hylafax/hylafax%20CentOS%205%20RPM/hylafax-5.4.3-1.x86_64.rpm
+# wget -N ftp://ftp.pbone.net/mirror/ftp.sourceforge.net/pub/sourceforge/h/hy/hylafax/hylafax%20CentOS%205%20RPM/hylafax-5.4.3-1.x86_64.rpm
 # rpm -Uvh $LOAD_LOC/hylafax-5.4.3-1.x86_64.rpm
 #else
-# wget ftp://ftp.pbone.net/mirror/ftp.sourceforge.net/pub/sourceforge/h/hy/hylafax/hylafax%20CentOS%205%20RPM/hylafax-5.5.0-1.i386.rpm
+# wget -N ftp://ftp.pbone.net/mirror/ftp.sourceforge.net/pub/sourceforge/h/hy/hylafax/hylafax%20CentOS%205%20RPM/hylafax-5.5.0-1.i386.rpm
 # rpm -Uvh $LOAD_LOC/hylafax-5.5.0-1.i386.rpm
 #fi
 
+set +e
 # updated to hylafax+ to remove future problems if orig HylaFax is someday released for CentOS 6.x
 if [ $centos != 386 ]
 then
@@ -101,21 +135,27 @@ chkconfig --add hylafax
 chkconfig --add hylafax+
 chkconfig hylafax on
 chkconfig hylafax+ on
+set -e
 
-wget http://incrediblepbx.com/iaxmodem-1.2.0.tar.gz
-#wget http://garr.dl.sourceforge.net/project/avantfax/avantfax-3.3.3.tgz
+wget -N http://incrediblepbx.com/iaxmodem-1.2.0.tar.gz
+#wget -N http://garr.dl.sourceforge.net/project/avantfax/avantfax-3.3.3.tgz
 
 #INstall IAXMODEMS 0->3
 
-cd /usr/src
-tar zxfv $LOAD_LOC/iaxmodem-1.2.0.tar.gz
+#cd $LOAD_LOC
+tar zxfv iaxmodem-*.tar.gz
 cd iaxmodem-1.2.0
 ./configure
 make
-mkdir /etc/iaxmodem/
 
+set +e
+mkdir /etc/iaxmodem/
 mkdir /var/log/iaxmodem
 touch /var/log/iaxmodem/iaxmodem.log
+service iaxmodem stop
+service hylafax stop
+service hylafax+ stop
+set -e
 
 COUNT=0
 while [ $COUNT -lt 4 ]; do
@@ -130,7 +170,7 @@ port 457$COUNT
 refresh 300
 server 127.0.0.1
 peername iax-fax$COUNT
-cidname Incredible PBX
+cidname FAX SENDER
 cidnumber +0000000000$COUNT
 codec ulaw
 " > /etc/iaxmodem/iaxmodem-cfg.ttyIAX$COUNT
@@ -152,7 +192,7 @@ permit=127.0.0.1/255.255.255.0
 " >> /etc/asterisk/iax_custom.conf
 
 #Setup Hylafax Modems
-cp /usr/src/iaxmodem-1.2.0/config.ttyIAX /var/spool/hylafax/etc/config.ttyIAX$COUNT
+cp $LOAD_LOC/iaxmodem-1.2.0/config.ttyIAX /var/spool/hylafax/etc/config.ttyIAX$COUNT
 
 echo "
 t$COUNT:23:respawn:/usr/sbin/faxgetty ttyIAX$COUNT > /var/log/iaxmodem/iaxmodem.log
@@ -184,17 +224,18 @@ sed -i 's/\/usr\/local\/sbin\/iaxmodem/\/usr\/sbin\/iaxmodem/g'  /etc/rc.d/init.
 chmod 0755 /etc/rc.d/init.d/iaxmodem
 chkconfig --add iaxmodem
 chkconfig iaxmodem on
-/etc/init.d/iaxmodem start
+#/etc/init.d/iaxmodem start
+service iaxmodem start
 
 
 #Configure Hylafax
 touch /var/spool/hylafax/etc/FaxDispatch
 echo "
-case "$DEVICE" in
-   ttyIAX0) SENDTO=your@email.address; FILETYPE=pdf;; # all faxes received on ttyIAX0
-   ttyIAX1) SENDTO=your@email.address; FILETYPE=pdf;; # all faxes received on ttyIAX1
-   ttyIAX2) SENDTO=your@email.address; FILETYPE=pdf;; # all faxes received on ttyIAX2
-   ttyIAX3) SENDTO=your@email.address; FILETYPE=pdf;; # all faxes received on ttyIAX3
+case \"\$DEVICE\" in
+   ttyIAX0) SENDTO=$faxemail; FILETYPE=pdf;; # all faxes received on ttyIAX0
+   ttyIAX1) SENDTO=$faxemail; FILETYPE=pdf;; # all faxes received on ttyIAX1
+   ttyIAX2) SENDTO=$faxemail; FILETYPE=pdf;; # all faxes received on ttyIAX2
+   ttyIAX3) SENDTO=$faxemail; FILETYPE=pdf;; # all faxes received on ttyIAX3
 esac
 " > /var/spool/hylafax/etc/FaxDispatch
 
@@ -215,7 +256,7 @@ exten => s,n,Busy
 exten => s,n,Hangup
 " >> /etc/asterisk/extensions_custom.conf
 
-
+set +e
 RESULT=`/usr/bin/mysql -uasteriskuser -p$MYSQLASTERISKUSERPASSWORD <<SQL
 
 use asterisk
@@ -224,6 +265,7 @@ INSERT INTO custom_destinations
 	VALUES ('custom-fax-iaxmodem,s,1', 'Fax (Hylafax)', '');
 quit
 SQL`
+set -e
 
 clear
 echo "ATTN: We now are going to run the Hylafax setup script."
@@ -232,21 +274,24 @@ echo "you can safely accept every default by pressing Enter."
 read -p "Press the Enter key to begin..."
 clear
 
-wget http://incrediblepbx.com/fax/php-pear-Mail-Mime-1.4.0-1.el5.noarch.rpm
-wget http://incrediblepbx.com/fax/php-pear-Net-Socket-1.0.10-1.el5.noarch.rpm
-wget http://incrediblepbx.com/fax/php-pear-Auth-SASL-1.0.4-1.el5.noarch.rpm
-wget http://incrediblepbx.com/fax/php-pear-Net-SMTP-1.4.4-1.el5.noarch.rpm
-wget http://incrediblepbx.com/fax/php-pear-Mail-1.1.14-5.el5.1.noarch.rpm
-wget http://incrediblepbx.com/fax/php-pear-MDB2-2.4.1-2.el5.noarch.rpm
-wget http://incrediblepbx.com/fax/php-pear-MDB2-Driver-mysql-1.4.1-3.el5.noarch.rpm
+#wget -N http://incrediblepbx.com/fax/php-pear-Mail-Mime-1.4.0-1.el5.noarch.rpm
+#wget -N http://incrediblepbx.com/fax/php-pear-Net-Socket-1.0.10-1.el5.noarch.rpm
+#wget -N http://incrediblepbx.com/fax/php-pear-Auth-SASL-1.0.4-1.el5.noarch.rpm
+#wget -N http://incrediblepbx.com/fax/php-pear-Net-SMTP-1.4.4-1.el5.noarch.rpm
+#wget -N http://incrediblepbx.com/fax/php-pear-Mail-1.1.14-5.el5.1.noarch.rpm
+#wget -N http://incrediblepbx.com/fax/php-pear-MDB2-2.4.1-2.el5.noarch.rpm
+#wget -N http://incrediblepbx.com/fax/php-pear-MDB2-Driver-mysql-1.4.1-3.el5.noarch.rpm
 
-rpm -ivh php-pear-Mail-Mime-1.4.0-1.el5.noarch.rpm
-rpm -ivh php-pear-Net-Socket-1.0.10-1.el5.noarch.rpm
-rpm -ivh php-pear-Auth-SASL-1.0.4-1.el5.noarch.rpm
-rpm -ivh php-pear-Net-SMTP-1.4.4-1.el5.noarch.rpm
-rpm -ivh php-pear-Mail-1.1.14-5.el5.1.noarch.rpm
-rpm -ivh php-pear-MDB2-2.4.1-2.el5.noarch.rpm
-rpm -ivh php-pear-MDB2-Driver-mysql-1.4.1-3.el5.noarch.rpm
+#rpm -ivh php-pear-Mail-Mime-1.4.0-1.el5.noarch.rpm
+#rpm -ivh php-pear-Net-Socket-1.0.10-1.el5.noarch.rpm
+#rpm -ivh php-pear-Auth-SASL-1.0.4-1.el5.noarch.rpm
+#rpm -ivh php-pear-Net-SMTP-1.4.4-1.el5.noarch.rpm
+#rpm -ivh php-pear-Mail-1.1.14-5.el5.1.noarch.rpm
+#rpm -ivh php-pear-MDB2-2.4.1-2.el5.noarch.rpm
+#rpm -ivh php-pear-MDB2-Driver-mysql-1.4.1-3.el5.noarch.rpm
+
+yum -y install php-pear-Mail-Mime php-pear-Net-Socket php-pear-Auth-SASL 
+yum -y install php-pear-Net-SMTP php-pear-Mail php-pear-MDB2 php-pear-MDB2-Driver-mysql
 
 yum -y update php-pear-Net-Socket
 yum -y update php-pear-Auth-SASL
@@ -254,38 +299,61 @@ yum -y update php-pear-Auth-SASL
 faxsetup
 
 #Install Avantfax
-mysql -uroot -ppassw0rd asterisk -e "DROP DATABASE avantfax"
+# No absolute need to drop AvantFax database data. Let Avantfax install over it. Should work OK.
+#mysql -uroot -ppassw0rd asterisk -e "DROP DATABASE IF EXISTS avantfax"
 cd $LOAD_LOC
-wget http://incrediblepbx.com/avantfax-3.3.3.tgz
-#wget -O avantfax-3.3.3.tgz http://sourceforge.net/projects/avantfax/files/latest/download?source=typ_redirect#
-tar zxvf avantfax-3.3.3.tgz
-cd avantfax-3.3.3
+#wget -N http://incrediblepbx.com/avantfax-3.3.3.tgz
+wget -Oavantfax-latest.tgz https://sourceforge.net/projects/avantfax/files/latest/download
+tar zxvf avantfax-latest.tgz
+rm -f avantfax-latest.tgz
+#cd avantfax-3.3.3
+AVANTFAXDIR=`ls -Ad avantfax-*`
+cd $AVANTFAXDIR
 # Some sed commands to set the preferences
 sed -i 's/ROOTMYSQLPWD=/ROOTMYSQLPWD=passw0rd/g' rh-prefs.txt
 sed -i 's/apache/asterisk/g' rh-prefs.txt
 sed -i 's/fax.mydomain.com/pbx.local/g' rh-prefs.txt
 sed -i 's/INSTDIR=\/var\/www\/avantfax/INSTDIR=\/var\/www\/html\/avantfax/g' rh-prefs.txt
 
-sed -i 's|rh-prefs.txt|/usr/src/avantfax-3.3.3/rh-prefs.txt|g' rh-install.sh
+sed -i "s|rh-prefs.txt|/usr/src/$AVANTFAXDIR/rh-prefs.txt|g" rh-install.sh
+
+release=$(lsb_release -rs | cut -f1 -d.)
+if [[ $release -gt 6 ]]; then
+  #IMPORTANT BUG FIX - on centos 7/redhat 7, vixie-cron and mysql-server have been replaced by cronie and mariadb-server !!
+  #  So if we don't replace these in the rh-install.sh , then the Avantfax install will totally FAIL!
+  #  -Chris Coleman, EspaceNetworks.com , github.com/EspaceNetworks
+  sed -i "s|vixie-cron|cronie|g" rh-install.sh
+  sed -i "s|mysql-server|mariadb-server|g" rh-install.sh
+fi
 
 ./rh-install.sh
 
 rm -rf /etc/httpd/conf.d/avantfax.conf
 
+
 # Add a menu item to kennonsoft interface
 #copy in the picture
 cd $LOAD_LOC
-wget http://incrediblepbx.com/ico_fax.png
+set +e
+wget -N http://incrediblepbx.com/ico_fax.png
 mv $LOAD_LOC/ico_fax.png /var/www/html/welcome/ico_fax.png
+set -e
 sed -i '/asteridex/ i\1,Fax,./avantfax,Avantfax,ico_fax.png' /var/www/html/welcome/.htindex.cfg
 
 chown -R asterisk:asterisk /var/lib/php/session/
 
 cd /etc/pbx/httpdconf
-wget http://incrediblepbx.com/reminders.conf
-cp reminders.conf avantfax.conf
-sed -i 's|reminders|avantfax|g' avantfax.conf
+wget -N http://incrediblepbx.com/reminders.conf
+#cp reminders.conf avantfax.conf
+#sed -i 's|reminders|avantfax|g' avantfax.conf
 chmod 744 *
+# Remove it from here in case it was previously installed here. This bug will prevent login to AvantFax.
+rm -rf avantfax.conf
+
+#Fix bug: Fail to send coverpage
+sed -i "s|#error_log = syslog|error_log = syslog|g" /etc/php.ini
+sed -i "s|;error_log = syslog|error_log = syslog|g" /etc/php.ini
+
 
 service httpd restart
 
@@ -313,11 +381,11 @@ sed -i 's|NVfaxdetect(5)|Goto(custom-fax-iaxmodem,s,1)|g' /etc/asterisk/extensio
 asterisk -rx "dialplan reload"
 
 cd $LOAD_LOC
-wget http://incrediblepbx.com/hylafax_mod-1.8.2.wbm.gz
+wget -N http://incrediblepbx.com/hylafax_mod-1.8.2.wbm.gz
 
 cd /usr/share/ghostscript/8.70/Resource/Init
 mv Fontmap.GS Fontmap.GS.orig
-wget http://incrediblepbx.com/Fontmap.GS
+wget -N http://incrediblepbx.com/Fontmap.GS
 
 echo "
 JobReqNoAnswer:  180
@@ -366,7 +434,7 @@ echo "/usr/sbin/faxgetty -D ttyIAX3" >> /etc/rc.d/rc.local
 
 # needed for /etc/cron.hourly/hylafax+
 cd /etc/sysconfig
-wget http://incrediblepbx.com/hylafax+
+wget -N http://incrediblepbx.com/hylafax+
 chmod 755 hylafax+
 
 sed -i '/exit 0/d' /etc/rc.d/rc.local
@@ -382,7 +450,7 @@ amportal a r
 mysql -u root -ppassw0rd -e "UPDATE avantfax.UserAccount SET  username =  'admin' WHERE  avantfax.UserAccount.uid =1;"
 
 cd /var/www/html/avantfax/includes
-wget http://incrediblepbx.com/avantfax-config.tar.gz
+wget -N http://incrediblepbx.com/avantfax-config.tar.gz
 tar zxvf avantfax-config.tar.gz
 
 sed -i 's|enabled=1|enabled=0|' /etc/yum.repos.d/FreePBX.repo
@@ -417,7 +485,7 @@ echo " "
 echo "Point a DID to new Custom Destination FAX (Hylafax): custom-fax-iaxmodem,s,1"
 echo "Outbound faxing will go out via the normal trunks as configured."
 echo " "
-echo "A Hylafax webmin module has been placed in /usr/src/hylafax_mod-1.8.2.wbm.gz"
+echo "A Hylafax webmin module has been placed in $LOAD_LOC/hylafax_mod-1.8.2.wbm.gz"
 echo "This is added via Webmin | Webmin Configuration | Webmin Modules | From Local File"
 echo " "
 echo "For a complete tutorial and video demo, visit: http://nerdvittles.com/?p=738"
