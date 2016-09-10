@@ -71,6 +71,10 @@ then
   fi
 fi
 
+#freepbx must be in running state for this fax installer to work right without error.
+set +e
+amportal start
+set -e
 
 clear
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
@@ -81,8 +85,8 @@ echo " "
 echo "You first will need to enter the email address for delivery of incoming faxes." 
 echo " "
 echo "Thereafter, accept ALL the defaults except for entering your local area code. "
-echo " "
-echo "NEVER RUN THIS SCRIPT MORE THAN ONCE ON THE SAME SYSTEM!!!"
+#echo " "
+#echo "NEVER RUN THIS SCRIPT MORE THAN ONCE ON THE SAME SYSTEM!!!"
 echo "+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
 read -p "Press any key to continue or ctrl-C to exit"
 
@@ -91,6 +95,27 @@ echo -n "Enter EMAIL address for delivery of incoming faxes: "
 read faxemail
 echo "FAX EMail Address: $faxemail"
 read -p "If this is correct, press any key to continue or ctrl-C to exit"
+echo
+echo -n "Enter FAX COUNTRY CODE (USA or Canada enter 1, France enter 33, UK 44, DE 49, etc: "
+read faxcountrycode
+echo "FAX Country Code: $faxcountrycode"
+read -p "If this is correct, press any key to continue or ctrl-C to exit"
+echo
+echo -n "Enter FAX AREA CODE (shown to destination fax machine for fax reply): "
+read faxareacode
+echo "FAX AREA CODE: $faxareacode"
+read -p "If this is correct, press any key to continue or ctrl-C to exit"
+echo
+echo -n "Enter FAX NUMBER (normally 7 digits), for example, xxx.xxxx : "
+read faxnumber
+echo "FULL FAX NUMBER (including country code and area code): +$faxcountrycode.$faxareacode.$faxnumber"
+read -p "If this is correct, press any key to continue or ctrl-C to exit"
+echo
+echo -n "Enter LOCAL IDENTIFIER name, shown to the fax machine yours communicates with: "
+read faxlocalidentifier
+echo "FAX LOCAL IDENTIFIER: $faxlocalidentifier"
+read -p "If this is correct, press any key to continue or ctrl-C to exit"
+
 clear
 
 #Change passw0rd below for your MySQL asteriskuser password if you have changed it from the default.
@@ -122,29 +147,43 @@ centos=${processor:1:3}
 # rpm -Uvh $LOAD_LOC/hylafax-5.5.0-1.i386.rpm
 #fi
 
+echo "Hylafax latest from sourceforge..."
+wget -Ohylafax-latest.tar.gz https://sourceforge.net/projects/hylafax/files/latest/download
+tar zxvf hylafax-latest.tar.gz
+rm -rf hylafax-latest.tar.gz
+cd hylafax-*
+./configure
+make
+make install
+#will call "faxsetup" later in this install script... see below.
+
 set +e
-# updated to hylafax+ to remove future problems if orig HylaFax is someday released for CentOS 6.x
-if [ $centos != 386 ]
-then
- yum -y install hylafax*
+## updated to hylafax+ to remove future problems if orig HylaFax is someday released for CentOS 6.x
+#if [ $centos != 386 ]
+#then
+# yum -y install hylafax*
  mv /etc/init.d/hylafax+ /etc/init.d/hylafax
-else
- yum -y install hylafax
-fi
+#else
+# yum -y install hylafax
+#fi
 chkconfig --add hylafax
 chkconfig --add hylafax+
 chkconfig hylafax on
 chkconfig hylafax+ on
 set -e
 
-wget -N http://incrediblepbx.com/iaxmodem-1.2.0.tar.gz
+cd $LOAD_LOC
+rm -rf iaxmodem*
+#wget -N http://incrediblepbx.com/iaxmodem-1.2.0.tar.gz
+wget -Oiaxmodem-latest.tar.gz https://sourceforge.net/projects/iaxmodem/files/latest/download
 #wget -N http://garr.dl.sourceforge.net/project/avantfax/avantfax-3.3.3.tgz
 
 #INstall IAXMODEMS 0->3
 
 #cd $LOAD_LOC
 tar zxfv iaxmodem-*.tar.gz
-cd iaxmodem-1.2.0
+rm -rf iaxmodem-*.tar.gz
+cd iaxmodem-*
 ./configure
 make
 
@@ -192,7 +231,7 @@ permit=127.0.0.1/255.255.255.0
 " >> /etc/asterisk/iax_custom.conf
 
 #Setup Hylafax Modems
-cp $LOAD_LOC/iaxmodem-1.2.0/config.ttyIAX /var/spool/hylafax/etc/config.ttyIAX$COUNT
+cp $LOAD_LOC/iaxmodem-*/config.ttyIAX /var/spool/hylafax/etc/config.ttyIAX$COUNT
 
 echo "
 t$COUNT:23:respawn:/usr/sbin/faxgetty ttyIAX$COUNT > /var/log/iaxmodem/iaxmodem.log
@@ -293,8 +332,8 @@ clear
 yum -y install php-pear-Mail-Mime php-pear-Net-Socket php-pear-Auth-SASL 
 yum -y install php-pear-Net-SMTP php-pear-Mail php-pear-MDB2 php-pear-MDB2-Driver-mysql
 
-yum -y update php-pear-Net-Socket
-yum -y update php-pear-Auth-SASL
+#yum -y update php-pear-Net-Socket
+#yum -y update php-pear-Auth-SASL
 
 faxsetup
 
@@ -358,7 +397,7 @@ sed -i "s|;error_log = syslog|error_log = syslog|g" /etc/php.ini
 service httpd restart
 
 asterisk -rx "module reload"
-
+#amportal restart
 
 mysql -uroot -ppassw0rd avantfax <<EOF
 use avantfax;
@@ -383,37 +422,28 @@ asterisk -rx "dialplan reload"
 cd $LOAD_LOC
 wget -N http://incrediblepbx.com/hylafax_mod-1.8.2.wbm.gz
 
-cd /usr/share/ghostscript/8.70/Resource/Init
+cd /usr/share/ghostscript/?.??/Resource/Init
 mv Fontmap.GS Fontmap.GS.orig
 wget -N http://incrediblepbx.com/Fontmap.GS
 
-echo "
-JobReqNoAnswer:  180
-JobReqNoCarrier: 180
-#ModemRate:      14400
-" >> /var/spool/hylafax/etc/config.ttyIAX0
-sed -i "s/IAXmodem/IncredibleFax/g" /var/spool/hylafax/etc/config.ttyIAX0
 
-echo "
+write_ttyiax() {
+  echo "
 JobReqNoAnswer:  180
 JobReqNoCarrier: 180
 #ModemRate:      14400
-" >> /var/spool/hylafax/etc/config.ttyIAX1
-sed -i "s/IAXmodem/IncredibleFax/g" /var/spool/hylafax/etc/config.ttyIAX1
+" >> /var/spool/hylafax/etc/config.ttyIAX$1
+sed -i "s/CountryCode:\t\t1/CountryCode:\t\t$faxcountrycode/g" /var/spool/hylafax/etc/config.ttyIAX$1
+sed -i "s/AreaCode:\t\t800/AreaCode:\t\t$faxareacode/g" /var/spool/hylafax/etc/config.ttyIAX$1
+sed -i "s/FAXNumber:\t\t+1.800.555.1212/FAXNumber:\t\t+$faxcountrycode.$faxareacode.$faxnumber/g" /var/spool/hylafax/etc/config.ttyIAX$1
+sed -i "s/LocalIdentifier:\t\"IAXmodem\"/LocalIdentifier:\t\"$faxlocalidentifier\"/g" /var/spool/hylafax/etc/config.ttyIAX$1
+}
 
-echo "
-JobReqNoAnswer:  180
-JobReqNoCarrier: 180
-#ModemRate:      14400
-" >> /var/spool/hylafax/etc/config.ttyIAX2
-sed -i "s/IAXmodem/IncredibleFax/g" /var/spool/hylafax/etc/config.ttyIAX2
+for i in `seq 0 3`;
+do
+   write_ttyiax $i
+done
 
-echo "
-JobReqNoAnswer:  180
-JobReqNoCarrier: 180
-#ModemRate:      14400
-" >> /var/spool/hylafax/etc/config.ttyIAX3
-sed -i "s/IAXmodem/IncredibleFax/g" /var/spool/hylafax/etc/config.ttyIAX3
 
 sed -i "s/a4/letter/" /var/www/html/avantfax/includes/local_config.php
 
@@ -442,6 +472,7 @@ echo "exit 0" >> /etc/rc.d/rc.local
 
 # Add Josh North Avantfax module for the GUI
 cd /var/www/html/admin/modules
+rm -rf avantfax
 git clone https://github.com/joshnorth/FreePBX-AvantFAX avantfax
 chown -R asterisk:asterisk avantfax
 amportal a ma install avantfax
@@ -453,7 +484,9 @@ cd /var/www/html/avantfax/includes
 wget -N http://incrediblepbx.com/avantfax-config.tar.gz
 tar zxvf avantfax-config.tar.gz
 
+set +e
 sed -i 's|enabled=1|enabled=0|' /etc/yum.repos.d/FreePBX.repo
+set -e
 gui-fix
 
 echo "minregexpire=60" > /etc/asterisk/iax_registrations_custom.conf
