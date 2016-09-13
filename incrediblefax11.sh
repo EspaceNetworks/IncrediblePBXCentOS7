@@ -196,6 +196,8 @@ service hylafax stop
 service hylafax+ stop
 set -e
 
+FAXGETTYPATH=`which faxgetty`
+
 COUNT=0
 while [ $COUNT -lt 4 ]; do
        echo "Number = $COUNT"
@@ -234,7 +236,7 @@ permit=127.0.0.1/255.255.255.0
 cp $LOAD_LOC/iaxmodem-*/config.ttyIAX /var/spool/hylafax/etc/config.ttyIAX$COUNT
 
 echo "
-t$COUNT:23:respawn:/usr/sbin/faxgetty ttyIAX$COUNT > /var/log/iaxmodem/iaxmodem.log
+t$COUNT:23:respawn:$FAXGETTYPATH ttyIAX$COUNT > /var/log/iaxmodem/iaxmodem.log
 " >> /etc/inittab
 
 
@@ -457,10 +459,10 @@ chmod 555 /
 perl -MCPAN -e 'install CGI'
 
 sed -i '/faxgetty/d' /etc/rc.d/rc.local
-echo "faxgetty -D ttyIAX0" >> /etc/rc.d/rc.local
-echo "faxgetty -D ttyIAX1" >> /etc/rc.d/rc.local
-echo "faxgetty -D ttyIAX2" >> /etc/rc.d/rc.local
-echo "faxgetty -D ttyIAX3" >> /etc/rc.d/rc.local
+echo "$FAXGETTYPATH -D ttyIAX0" >> /etc/rc.d/rc.local
+echo "$FAXGETTYPATH -D ttyIAX1" >> /etc/rc.d/rc.local
+echo "$FAXGETTYPATH -D ttyIAX2" >> /etc/rc.d/rc.local
+echo "$FAXGETTYPATH -D ttyIAX3" >> /etc/rc.d/rc.local
 
 # needed for /etc/cron.hourly/hylafax+
 cd /etc/sysconfig
