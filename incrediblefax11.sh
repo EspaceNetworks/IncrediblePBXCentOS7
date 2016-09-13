@@ -457,10 +457,10 @@ chmod 555 /
 perl -MCPAN -e 'install CGI'
 
 sed -i '/faxgetty/d' /etc/rc.d/rc.local
-echo "/usr/sbin/faxgetty -D ttyIAX0" >> /etc/rc.d/rc.local
-echo "/usr/sbin/faxgetty -D ttyIAX1" >> /etc/rc.d/rc.local
-echo "/usr/sbin/faxgetty -D ttyIAX2" >> /etc/rc.d/rc.local
-echo "/usr/sbin/faxgetty -D ttyIAX3" >> /etc/rc.d/rc.local
+echo "faxgetty -D ttyIAX0" >> /etc/rc.d/rc.local
+echo "faxgetty -D ttyIAX1" >> /etc/rc.d/rc.local
+echo "faxgetty -D ttyIAX2" >> /etc/rc.d/rc.local
+echo "faxgetty -D ttyIAX3" >> /etc/rc.d/rc.local
 
 # needed for /etc/cron.hourly/hylafax+
 cd /etc/sysconfig
