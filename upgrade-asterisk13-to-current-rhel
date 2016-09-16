@@ -1,0 +1,157 @@
+#!/bin/bash
+
+# Asterisk Upgrade Script for Incredible PBX with Incredible GUI. Licensed under GPL2+.
+# Portions Copyright (C) 2005-2016, Ward Mundy & Associates LLC. All Rights Reserved.
+# For a copy of license, visit http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+
+amportal start
+
+clear
+
+version=`asterisk -rx "core show version" | grep -m 2 ^ | tail -1 | cut -f 2 -d " " | cut -f 1 -d "."`
+
+if [[ "$version" != "13" ]]; then
+ echo "Sorry. This upgrade utility only works with Asterisk 13."
+ exit 1
+fi
+
+if [ -d "/etc/schmooze" ]; then
+ echo "Sorry. Asterisk compile from source not supported by SHMZ OS."
+ exit 2
+fi
+
+if [ ! -f /etc/redhat-release ]; then
+    echo "Sorry. This upgrade utility only works with CentOS/SL."
+    exit 3
+fi
+
+VERSION=`cat /etc/pbx/.version`
+OAUTHFLAG=0
+
+if [ "$VERSION" = "13-12.3"  ]; then
+ echo "need OAUTH"
+ OAUTHFLAG=1
+fi
+if [ "$VERSION" = "13-12.5"  ]; then
+ echo "need OAUTH"
+ OAUTHFLAG=1
+fi
+if [ "$OAUTHFLAG" = "0"  ]; then
+ echo "You do not appear to be using OAuth for Google Voice."
+ echo -n "Enter (0) for Plaintext passwords or (1) for OAuth2: "
+ read OAUTHFLAG
+ echo " "
+ if [ "$OAUTHFLAG" = "1"  ]; then
+  echo "You MUST remove existing Google Voice trunks BEFORE"
+  echo "continuing with this update. If you have not done so,"
+  read -p "Press ctrl-C NOW. Otherwise, press ENTER to continue."
+ else
+  echo "OAuth authentication will NOT be activated."
+  read -p "Press ENTER to continue with the Asterisk upgrade."
+ fi
+fi
+
+clear
+echo "This script upgrades Asterisk $version to latest release..."
+echo "SSH users: Expand your display window by 50+ percent."
+echo "Upgrade takes 30-60+ minutes with Asterisk off-line."
+read -p "Press ENTER key to continue or Ctrl-C to abort."
+
+read -r -p "Do you want to manually edit menuselect? [y/N] " MSFLAG
+
+centos=x86_64
+test=`uname -m`
+if [[ "$centos" = "$test" ]]; then
+ arch64=true
+else
+ arch64=false
+fi
+
+
+echo "Upgrading Asterisk $version. Have a cup of coffeee or two..."
+amportal kill
+yum -y install expect
+cd /usr/src
+if [ -f /usr/src/asterisk-13*/res_xmpp-13.tar.gz ]; then
+ cd asterisk-13*
+ mv res_xmpp-13.tar.gz ../.
+ cd ..
+fi
+rm -rf asterisk-$version*
+rm -rf pjproj*
+wget http://www.pjsip.org/release/2.5.5/pjproject-2.5.5.tar.bz2
+wget http://downloads.asterisk.org/pub/telephony/asterisk/asterisk-$version-current.tar.gz
+tar jxvf pjproject-*.tar.bz2
+tar zxvf asterisk-$version-current.tar.gz
+rm -f pjproject-*.tar.bz2
+rm -f asterisk-$version-current.tar.gz
+
+cd pjproj*
+if $arch64; then
+ CFLAGS='-DPJ_HAS_IPV6=1' ./configure --prefix=/usr --enable-shared --disable-sound --disable-resample --disable-video --disable-opencore-amr --libdir=/usr/lib64
+else
+ CFLAGS='-DPJ_HAS_IPV6=1' ./configure --prefix=/usr --enable-shared --disable-sound --disable-resample --disable-video --disable-opencore-amr --libdir=/usr/lib
+fi
+make dep
+make && make install
+
+cd /usr/src/asterisk-$version*
+contrib/scripts/get_mp3_source.sh
+if [ "$OAUTHFLAG" = "1"  ]; then
+ wget http://incrediblepbx.com/res_xmpp-13.tar.gz
+ tar zxvf res_xmpp-13.tar.gz
+else
+ sed -i 's/SSLv3_method()/SSLv23_method()/g' res/res_xmpp.c
+fi
+make distclean
+wget http://incrediblepbx.com/menuselect-incredible13.8.tar.gz
+tar zxvf menuselect-incredible*
+rm -f menuselect-incredible*
+
+if $arch64; then
+ ./configure --libdir=/usr/lib64
+else
+ ./configure --libdir=/usr/lib
+fi
+
+make menuselect.makeopts
+menuselect/menuselect --enable-category  MENUSELECT_ADDONS menuselect.makeopts
+menuselect/menuselect --enable CORE-SOUNDS-EN-GSM --enable MOH-OPSOUND-WAV --enable EXTRA-SOUNDS-EN-GSM --enable cdr_mysql menuselect.makeopts
+menuselect/menuselect --disable app_mysql --disable app_setcallerid --disable func_audiohookinherit --disable res_fax_spandsp menuselect.makeopts
+
+sed -i 's|march=native|mtune=native|' Makefile.rules
+
+if [[ $MSFLAG =~ ^([yY][eE][sS]|[yY])$ ]]; then
+ make menuselect
+else
+ expect -c 'set timeout 120;spawn make menuselect;expect "Save & Exit";send "\t\t\r";interact'
+fi
+
+make
+make install
+
+cd /usr/src
+wget -Ozaf-Asterisk-Flite-latest.tar.gz https://github.com/zaf/Asterisk-Flite/archive/v2.3-flite-1.3.tar.gz
+tar zxvf zaf-Asterisk-Flite-latest.tar.gz
+rm -rf zaf-Asterisk-Flite-latest.tar.gz
+cd *Asterisk-Flite*
+make clean
+make
+make install
+cd ~
+
+if [ "$OAUTHFLAG" = "1"  ]; then
+ cd /var/www/html/admin
+ sed -i 's|Google Voice Password|Google Voice Refresh Token|' modules/motif/views/edit.php
+ sed -i 's|This is your Google Voice Password|This is your Google Voice refresh token|' modules/motif/views/edit.php
+ echo $VERSION > /etc/pbx/.version
+fi
+
+amportal start
+gui-fix
+sleep 5
+if [ ! -f /usr/local/sbin/pbxstatus ]; then
+ status
+else
+ pbxstatus
+fi
