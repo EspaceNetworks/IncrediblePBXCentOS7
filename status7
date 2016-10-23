@@ -10,7 +10,7 @@ else
 fi
 version=`cat /etc/pbx/.version`
 astversion=`asterisk -rx "core show version" | grep -m 2 ^ | tail -1 | cut -f 2 -d " "`
-fpbxversion=`cat /var/www/html/admin/modules/core/module.xml | grep version | head -n 1 | cut -f 2 -d ">" | cut -f 1 -d "<"`
+fpbxversion=`php -r "include '/etc/freepbx.conf'; echo get_framework_version();"`
 test=`ps aux | grep -c /usr/sbin/asterisk`
 OSrelease=`cat /etc/os-release | grep 'PRETTY_NAME="' | cut -f 2 -d "="`
 
